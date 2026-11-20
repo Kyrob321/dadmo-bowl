@@ -76,16 +76,8 @@
     $("view" + s).querySelectorAll("span").forEach(el => el.classList.toggle("on", !!inputs[s][el.dataset.k]));
   }
 
-  // Keyboard backup for Player 1: arrows + Z / X.
-  const KEYMAP = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right", z: "z", Z: "z", x: "x", X: "x" };
-  function key(e, down) {
-    const k = KEYMAP[e.key]; if (!k) return;
-    e.preventDefault();
-    inputs[1] = Object.assign({}, inputs[1], { [k]: down });
-    draw(1);
-  }
-  addEventListener("keydown", e => key(e, true));
-  addEventListener("keyup", e => key(e, false));
+  // The game reads phone buttons from here (keyboard lives in input.js).
+  window.PADS = { inputs, connected: s => !!(slots[s] && conns[slots[s]]) };
 
   if (typeof Peer === "undefined") setNet("COULD NOT LOAD THE LINK LIBRARY · CHECK INTERNET", "bad");
   else openRoom();
