@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Dadmo Pad">
+<title>Dadmo Pad</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/pad.css">
+</head>
+<body>
+<div class="rotate" id="rotate">TURN YOUR PHONE SIDEWAYS</div>
+
+<div class="pad" id="pad">
+  <header class="bar">
+    <span id="who">JOINING…</span>
+    <span id="status">CONNECTING</span>
+  </header>
+
+  <div class="dpad" id="dpad" aria-label="Direction pad">
+    <div class="d up" data-k="up">▲</div>
+    <div class="d left" data-k="left">◀</div>
+    <div class="d mid"></div>
+    <div class="d right" data-k="right">▶</div>
+    <div class="d down" data-k="down">▼</div>
+  </div>
+
+  <div class="logo-mid">DADMO<br>BOWL</div>
+
+  <div class="buttons">
+    <div class="b-wrap"><div class="b" data-k="x">X</div><span class="b-label" id="lx">RUN</span></div>
+    <div class="b-wrap"><div class="b" data-k="z">Z</div><span class="b-label" id="lz">PASS</span></div>
+  </div>
+</div>
+
+<div class="join-form" id="joinForm" hidden>
+  <p>ENTER THE ROOM CODE ON THE TV</p>
+  <input id="codeIn" maxlength="4" autocapitalize="characters" autocomplete="off" spellcheck="false" aria-label="Room code">
+  <button id="codeGo" type="button">JOIN</button>
+</div>
+
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="js/net.js"></script>
+<script src="js/pad.js"></script>
+</body>
+</html>

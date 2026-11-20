@@ -1,0 +1,92 @@
+// TV screen: opens a room, shows the QR code, assigns phones to player slots,
+// and lights up each player's buttons so we can feel the lag.
+(function () {
+  const $ = id => document.getElementById(id);
+  const slots = { 1: null, 2: null };          // slot -> clientId
+  const conns = {};                             // clientId -> DataConnection
+  const inputs = { 1: {}, 2: {} };              // slot -> {key: bool}
+  let peer, code;
+
+  function padUrl(c) {
+    const base = location.href.replace(/[^/]*([?#].*)?$/, "");
+    return base + "pad.html?room=" + c;
+  }
+
+  function showRoom() {
+    $("code").textContent = code;
+    const url = padUrl(code);
+    $("url").textContent = url.replace(/^https?:\/\//, "");
+    $("qr").innerHTML = "";
+    new QRCode($("qr"), { text: url, width: 256, height: 256, correctLevel: QRCode.CorrectLevel.M });
+  }
+
+  function setNet(text, cls) { const n = $("net"); n.textContent = text; n.className = "net " + (cls || ""); }
+
+  function openRoom() {
+    code = NET.newCode();
+    peer = new Peer(NET.peerId(code));
+    peer.on("open", () => { showRoom(); setNet("READY · WAITING FOR PHONES", "ok"); });
+    peer.on("connection", onConn);
+    peer.on("disconnected", () => { setNet("RECONNECTING…", "bad"); peer.reconnect(); });
+    peer.on("error", err => {
+      if (err.type === "unavailable-id") { peer.destroy(); openRoom(); return; } // code taken, pick another
+      setNet("LINK ERROR: " + String(err.type || err).toUpperCase(), "bad");
+      console.error(err);
+    });
+  }
+
+  function slotFor(clientId) {
+    for (const s of [1, 2]) if (slots[s] === clientId) return s;          // rejoin same slot
+    for (const s of [1, 2]) if (!slots[s] || !conns[slots[s]]) { slots[s] = clientId; return s; }
+    return 0;                                                              // full
+  }
+
+  function onConn(conn) {
+    conn.on("data", msg => {
+      if (!msg || typeof msg !== "object") return;
+      if (msg.t === "hello") {
+        const s = slotFor(msg.id);
+        if (!s) { conn.send({ t: "full" }); setTimeout(() => conn.close(), 300); return; }
+        if (conns[msg.id] && conns[msg.id] !== conn) conns[msg.id].close();
+        conns[msg.id] = conn; conn._slot = s; conn._id = msg.id;
+        conn.send({ t: "welcome", slot: s });
+        $("slot" + s).classList.add("in");
+        $("state" + s).textContent = "READY";
+      } else if (msg.t === "in" && conn._slot) {
+        inputs[conn._slot] = msg.k || {};
+        draw(conn._slot);
+      } else if (msg.t === "ping") {
+        conn.send({ t: "pong", ts: msg.ts });
+      } else if (msg.t === "rtt" && conn._slot) {
+        $("lag" + conn._slot).textContent = "LAG " + Math.round(msg.ms / 2) + " MS (ONE WAY)";
+      }
+    });
+    conn.on("close", () => {
+      const s = conn._slot;
+      if (!s || conns[conn._id] !== conn) return;
+      delete conns[conn._id];
+      inputs[s] = {}; draw(s);
+      $("slot" + s).classList.remove("in");
+      $("state" + s).textContent = "DROPPED · SCAN TO REJOIN";
+      $("lag" + s).textContent = "";
+    });
+  }
+
+  function draw(s) {
+    $("view" + s).querySelectorAll("span").forEach(el => el.classList.toggle("on", !!inputs[s][el.dataset.k]));
+  }
+
+  // Keyboard backup for Player 1: arrows + Z / X.
+  const KEYMAP = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right", z: "z", Z: "z", x: "x", X: "x" };
+  function key(e, down) {
+    const k = KEYMAP[e.key]; if (!k) return;
+    e.preventDefault();
+    inputs[1] = Object.assign({}, inputs[1], { [k]: down });
+    draw(1);
+  }
+  addEventListener("keydown", e => key(e, true));
+  addEventListener("keyup", e => key(e, false));
+
+  if (typeof Peer === "undefined") setNet("COULD NOT LOAD THE LINK LIBRARY · CHECK INTERNET", "bad");
+  else openRoom();
+})();

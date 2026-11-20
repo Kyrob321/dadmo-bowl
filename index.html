@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dadmo Bowl</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/screen.css">
+</head>
+<body>
+<main class="title">
+  <h1 class="logo">DADMO BOWL</h1>
+  <p class="sub">J ROB EDITION</p>
+
+  <section class="join">
+    <div class="qr-box">
+      <div id="qr" aria-label="QR code to join with your phone"></div>
+    </div>
+    <div class="join-text">
+      <p class="small">SCAN WITH YOUR PHONE CAMERA</p>
+      <p class="small">OR GO TO</p>
+      <p class="url" id="url">…</p>
+      <p class="small">ROOM CODE</p>
+      <p class="code" id="code">····</p>
+      <p class="net" id="net">CONNECTING…</p>
+    </div>
+  </section>
+
+  <section class="slots">
+    <div class="slot p1" id="slot1">
+      <p class="who">PLAYER 1</p>
+      <p class="state" id="state1">WAITING…</p>
+      <div class="pad-view" id="view1">
+        <span data-k="up">▲</span><span data-k="left">◀</span><span data-k="right">▶</span><span data-k="down">▼</span>
+        <span data-k="x" class="btn">X</span><span data-k="z" class="btn">Z</span>
+      </div>
+      <p class="lag" id="lag1"></p>
+    </div>
+    <div class="slot p2" id="slot2">
+      <p class="who">PLAYER 2</p>
+      <p class="state" id="state2">WAITING…</p>
+      <div class="pad-view" id="view2">
+        <span data-k="up">▲</span><span data-k="left">◀</span><span data-k="right">▶</span><span data-k="down">▼</span>
+        <span data-k="x" class="btn">X</span><span data-k="z" class="btn">Z</span>
+      </div>
+      <p class="lag" id="lag2"></p>
+    </div>
+  </section>
+
+  <p class="hint">PHASE 0 LINK TEST · KEYBOARD ALSO WORKS FOR PLAYER 1: ARROWS + Z / X</p>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="js/net.js"></script>
+<script src="js/host.js"></script>
+</body>
+</html>
