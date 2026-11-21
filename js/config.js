@@ -4,6 +4,10 @@ const CFG = {
     1: { name: "J ROB'S BOLTS", short: "BOLTS", color: "#c8223a", dark: "#7d1022", trim: "#ffb627" },
     2: { name: "KYLE'S KRUSH", short: "KRUSH", color: "#2f6fd6", dark: "#173f86", trim: "#d8dde3" },
   },
+  // Difficulty: ratings boost for the computer's team when it plays a person (chosen on team select).
+  // Tested with person stand-ins: a newer player (+5) wins ~100% on ROOKIE, ~45% on STARTER; Kyle (+15) wins ~80% on PRO, ~35% on ALL-PRO.
+  DIFFICULTY: [{ id: "ROOKIE", boost: 0, note: "LEARNING THE GAME" }, { id: "STARTER", boost: 5, note: "A FAIR FIGHT" },
+    { id: "PRO", boost: 12, note: "FOR GOOD PLAYERS" }, { id: "ALL-PRO", boost: 16, note: "BRING YOUR BEST" }],
   QUARTER_SECONDS: 180,   // game clock per quarter; about 15 real minutes for a full game
   ACTION_SPEED: 0.78,     // on-field action speed (1 = original pace); lower = more time to think
   FIELD_W: 53.33,         // yards, sideline to sideline

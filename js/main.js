@@ -37,11 +37,13 @@
   }
 
   // ----- team select (secret on phones) and the VERSUS slam -----
-  const SEL = { slot: { 1: {}, 2: {} }, list: [], t: 0, taken: {} };
+  const SEL = { slot: { 1: {}, 2: {} }, list: [], t: 0, taken: {}, level: 0, vsCpu: false };
+  try { SEL.level = Math.max(0, Math.min(CFG.DIFFICULTY.length - 1, +localStorage.getItem("dadmo-level") || 0)); } catch (e) {}
   function openSelect(human, highlight) {
     document.body.classList.add("playing");
     pause.lastHuman = Object.assign({}, human);
     SEL.list = TEAMS.list.map(t => t.id); SEL.t = 0; SEL.taken = {};
+    SEL.vsCpu = !human[1] !== !human[2]; // exactly one person: the difficulty level matters
     for (const s of [1, 2]) {
       const prevId = SEL.slot[s] && SEL.slot[s].lockedId;
       const start = prevId ? SEL.list.indexOf(prevId) : SEL.list.indexOf(s === 1 ? "bolts" : "krush");
@@ -62,8 +64,13 @@
       P.phone = !!(window.PADS && window.PADS.connected(s));
       const n = SEL.list.length;
       if (!P.locked) {
-        if (INPUT.pressed(s, "right") || INPUT.pressed(s, "down")) { P.idx = (P.idx + 1) % n; SFX.blip(); SEL.taken[s] = null; }
-        if (INPUT.pressed(s, "left") || INPUT.pressed(s, "up")) { P.idx = (P.idx + n - 1) % n; SFX.blip(); SEL.taken[s] = null; }
+        if (INPUT.pressed(s, "right") || (!SEL.vsCpu && INPUT.pressed(s, "down"))) { P.idx = (P.idx + 1) % n; SFX.blip(); SEL.taken[s] = null; }
+        if (INPUT.pressed(s, "left") || (!SEL.vsCpu && INPUT.pressed(s, "up"))) { P.idx = (P.idx + n - 1) % n; SFX.blip(); SEL.taken[s] = null; }
+        // against the computer, up / down sets how tough it is (remembered for next time)
+        if (SEL.vsCpu && (INPUT.pressed(s, "up") || INPUT.pressed(s, "down"))) {
+          SEL.level = Math.max(0, Math.min(CFG.DIFFICULTY.length - 1, SEL.level + (INPUT.pressed(s, "up") ? 1 : -1))); SFX.blip();
+          try { localStorage.setItem("dadmo-level", SEL.level); } catch (e) {}
+        }
         if (INPUT.pressed(s, "z")) {
           const id = SEL.list[P.idx], o = SEL.slot[s === 1 ? 2 : 1];
           if (!PROGRESS.isUnlocked(id)) { SFX.buzz(); P.flash = SEL.t; }
@@ -79,6 +86,7 @@
       if (!teams[1]) teams[1] = cpuPick(teams[2]);
       if (!teams[2]) teams[2] = dev ? document.getElementById("devT2").value : cpuPick(teams[1]);
       teams.home = Math.random() < 0.5 ? 1 : 2; // whose stadium (and weather) this game is at
+      if (SEL.vsCpu) { const cpu = S1.human ? 2 : 1; teams.boost = { 1: 0, 2: 0 }; teams.boost[cpu] = CFG.DIFFICULTY[SEL.level].boost; }
       if (!dev && PROGRESS.data.games === 0) teams.weather = "clear"; // first game ever: clear skies, easy to read
       WEATHER.setFor(teams[teams.home], teams.weather);
       VS.teams = teams; VS.t = 0; mode = "versus";
@@ -95,7 +103,8 @@
   function pickFor(s) {
     if (mode !== "select" || !SEL.slot[s].human) return { off: true };
     const P = SEL.slot[s], id = SEL.list[P.idx], t = TEAMS.byId[id], cd = PROGRESS.card(id);
-    const o = { id, n: (P.idx + 1) + "/" + SEL.list.length, open: cd.open, locked: P.locked, taken: SEL.taken[s] === id };
+    const o = { id, n: (P.idx + 1) + "/" + SEL.list.length, open: cd.open, locked: P.locked, taken: SEL.taken[s] === id,
+      level: SEL.vsCpu ? CFG.DIFFICULTY[SEL.level].id : null };
     const lum = h => { const n = parseInt(h.slice(1), 16); return (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255; };
     const ui = lum(t.color) < 0.3 ? (lum(t.trim) < 0.3 ? "#f3efe4" : t.trim) : t.color; // readable on the dark card
     if (cd.open) Object.assign(o, { name: t.name, tag: t.tag, star: t.star, color: ui, helm: t.color, trim: t.trim, tape: TEAMS.tape(id) });
@@ -166,7 +175,8 @@
     const L = { x: "", z: "", up: "", down: "", left: "", right: "" };
     if (mode === "title") return Object.assign(L, { x: "START", z: "START" });
     if (mode === "select") { const P = SEL.slot[t]; if (!P.human) return L;
-      return P.locked ? Object.assign(L, { x: "CHANGE" }) : Object.assign(L, { x: "BACK", z: "LOCK IN", left: "PREV", right: "NEXT", up: "PREV", down: "NEXT" }); }
+      return P.locked ? Object.assign(L, { x: "CHANGE" }) : Object.assign(L, { x: "BACK", z: "LOCK IN", left: "PREV", right: "NEXT" },
+        SEL.vsCpu ? { up: "HARDER", down: "EASIER" } : { up: "PREV", down: "NEXT" }); }
     if (mode === "versus") return Object.assign(L, { z: "KICK OFF", x: "KICK OFF" });
     if (mode === "unlock") return Object.assign(L, { z: "PLAY THEM" });
     const G = GAME.state;

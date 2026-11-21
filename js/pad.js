@@ -72,7 +72,7 @@
     if (m.off) { box.hidden = true; logo.hidden = false; return; }
     box.hidden = false; logo.hidden = true;
     const esc = v => String(v == null ? "" : v).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
-    let h = '<div class="pk-n">' + esc(m.n) + '</div>';
+    let h = '<div class="pk-n">' + (m.level ? '<b class="pk-lvl">VS CPU: ' + esc(m.level) + ' ▲▼</b>' : '') + esc(m.n) + '</div>';
     if (m.open) {
       h += '<div class="pk-helm" style="background:' + esc(m.helm || m.color) + ';box-shadow:inset 0 0 0 4px ' + esc(m.trim) + '"></div>';
       h += '<div class="pk-name" style="color:' + esc(m.color) + '">' + esc(m.name) + '</div><div class="pk-tag">' + esc(m.tag) + '</div><div class="pk-star">' + esc(m.star) + '</div>';

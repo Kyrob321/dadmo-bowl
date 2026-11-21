@@ -55,10 +55,15 @@ const SCREENS = (() => {
       text("PLAYER " + s, x0 + 8, 50, s === 1 ? "#ef5a45" : "#6fa0f0", 8);
       const cx = x0 + w / 2;
       if (!P.human) {
-        text("COMPUTER", cx, 112, "#f3efe4", 12, "center");
-        if (window.DADMO_DEV) { text("DEV: PLAYS THE", cx, 140, "#ffb627", 8, "center"); text("P2 TEAM FROM THE PANEL", cx, 154, "#ffb627", 8, "center"); }
-        else { text("PICKS A RANDOM", cx, 140, "#9fb1c5", 8, "center"); text("UNLOCKED TEAM", cx, 154, "#9fb1c5", 8, "center"); }
-        helmet(cx - 28, 170, 4, null, s === 2, true);
+        text("COMPUTER", cx, 92, "#f3efe4", 12, "center");
+        // difficulty: up / down on the person's controller
+        const lv = CFG.DIFFICULTY[S.level], lvls = CFG.DIFFICULTY.length;
+        text("LEVEL", cx, 194, "#9fb1c5", 8, "center");
+        for (let i = 0; i < lvls; i++) { c.fillStyle = i <= S.level ? "#ffb627" : "#22324a"; c.fillRect(cx - lvls * 13 + i * 26 + 2, 206, 22, 8); }
+        text(lv.id, cx, 220, "#ffb627", 10, "center"); text(lv.note, cx, 234, "#9fb1c5", 8, "center");
+        if (window.DADMO_DEV) { text("DEV: PLAYS THE", cx, 112, "#ffb627", 8, "center"); text("P2 TEAM FROM THE PANEL", cx, 124, "#ffb627", 8, "center"); }
+        else { text("PICKS A RANDOM", cx, 112, "#9fb1c5", 8, "center"); text("UNLOCKED TEAM", cx, 124, "#9fb1c5", 8, "center"); }
+        helmet(cx - 28, 140, 4, null, s === 2, true);
         continue;
       }
       if (P.phone) { // secret pick: the TV never shows what you're browsing
@@ -84,7 +89,7 @@ const SCREENS = (() => {
         if (cd.prog) progressBar(x0 + 24, 206, w - 48, cd.prog);
       }
     }
-    text("< > BROWSE · Z LOCK IN · X BACK", VW / 2, 258, "#9fb1c5", 8, "center");
+    text(S.vsCpu ? "< > TEAM · UP/DOWN LEVEL · Z LOCK IN · X BACK" : "< > BROWSE · Z LOCK IN · X BACK", VW / 2, 258, "#9fb1c5", 8, "center");
   }
   const CFGtrim = t => { const n = parseInt(t.trim.slice(1), 16), l = (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255; return l < 0.3 ? t.color : t.trim; };
   function wrap(s, cx, y, n) {

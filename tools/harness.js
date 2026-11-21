@@ -96,3 +96,16 @@ window.runCombo = function (kind, team, games) {
   WEATHER.force(null);
   return { all, q4: {}, wins, games, err };
 };
+
+// Difficulty: slot 1 is a "person" stand-in (computer with a ratings edge), slot 2 is the computer at a difficulty boost.
+window.runDiff = function (personEdge, cpuBoost, games) {
+  const a = {}, b = {}; let w = 0, err = null;
+  const add = (acc, o) => { for (const k in o) if (typeof o[k] === "number") acc[k] = (acc[k] || 0) + o[k]; };
+  WEATHER.force("clear");
+  try { for (let g = 0; g < games; g++) {
+    GAME.newGame({ 1: false, 2: false }, { 1: "krush", 2: "krush", boost: { 1: personEdge, 2: cpuBoost } }); GAME.sim(3600);
+    add(a, GAME.state.stats.by[1]); add(b, GAME.state.stats.by[2]); if (GAME.state.winner === 1) w++;
+  } } catch (e) { err = String(e); }
+  WEATHER.force(null);
+  return { person: metrics(a).ptsDrive.toFixed(2), cpu: metrics(b).ptsDrive.toFixed(2), personWin: Math.round(100 * w / games), err };
+};

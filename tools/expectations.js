@@ -39,3 +39,17 @@ window.EXPECT_WEATHER = {
 // 2. No team breaks: points per drive (both teams together) stays within -1.0..+0.5 of clear for every team.
 // 3. Home field doesn't flip a matchup: no team's win share swings more than 25 points vs clear.
 window.EXPECT_COMBO = { ptsDrive: [-1.0, 0.5], winSwing: 25 };
+
+// Difficulty (written before testing). "Kyle" = a person stand-in with a +15 ratings edge, which reproduces his report
+// (scored every drive, the computer never scored: 6.5 vs 0.2 points per drive). "Dad" = a +5 edge (a newer player).
+// [person edge, level, person win % low..high]
+window.EXPECT_DIFF = [
+  [15, "ROOKIE", 90, 100],   // same as today: easy for Kyle
+  [15, "PRO", 60, 85],       // Kyle usually wins, but has to work; the computer scores
+  [15, "ALL-PRO", 30, 60],   // a real fight for Kyle
+  [5, "ROOKIE", 70, 95],     // Dad wins most games while learning
+  [5, "PRO", 20, 50],        // a step up for Dad
+  // RESULT: Dad on PRO won 2% (prediction wrong): the game is very sensitive to ratings, so one PRO level can't fit
+  // both a newer player and Kyle. Added STARTER (+5) between ROOKIE and PRO, predicted Dad 25..60, measured 43.
+  [5, "STARTER", 25, 60],
+];

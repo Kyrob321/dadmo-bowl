@@ -32,6 +32,9 @@ const GAME = (() => {
   // ---------- helpers ----------
   function makePlayer(team, side, spec) {
     const r = RATINGS.make(spec.role, team);
+    // Difficulty: the computer's team gets a ratings boost (or cut) when it plays a person.
+    const bst = (G.boost && G.boost[team]) || 0;
+    if (bst) for (const k in r) r[k] = clamp(r[k] + bst, 25, 99);
     return {
       team, side, role: spec.role, id: spec.id || spec.role, man: spec.man, r,
       x: spec.x, y: spec.y, x0: spec.x, y0: spec.y, vx: 0, vy: 0,
@@ -109,6 +112,7 @@ const GAME = (() => {
       stats: Object.assign(freshStats(), { by: { 1: freshStats(), 2: freshStats() }, q4: freshStats() }), lastZ: { 1: -9, 2: -9 },
     });
     // One team is at home; the game gets that stadium's weather.
+    G.boost = (teams && teams.boost) || { 1: 0, 2: 0 };
     G.windDir = Math.random() < 0.5 ? -1 : 1;
     G.home = (teams && teams.home) || (Math.random() < 0.5 ? 1 : 2);
     WEATHER.setFor(CFG.TEAMS[G.home].id, teams && teams.weather);
