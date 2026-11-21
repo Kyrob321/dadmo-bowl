@@ -132,8 +132,9 @@ const RENDER = (() => {
     const clock = G.ot ? "OT" : "Q" + G.quarter + " " + Math.floor(G.clock / 60) + ":" + String(Math.floor(G.clock % 60)).padStart(2, "0");
     text(clock, VW / 2, 7, "#ffb627", 8, "center");
     // possession dot
-    const px = G.poss === 1 ? 54 : VW - 82;
-    ctx.fillStyle = "#7a3f12"; ctx.fillRect(px, 9, 5, 4);
+    // possession: a little football under the team name
+    const px = G.poss === 1 ? 24 : VW - 28;
+    ctx.fillStyle = "#7a3f12"; ctx.fillRect(px, 16, 6, 3);
     if (G.phase === "presnap" || G.phase === "live" || G.phase === "dead") {
       if (!(G.play && G.play.type === "return")) {
         const ord = ["1ST", "2ND", "3RD", "4TH"][Math.min(G.down, 4) - 1];
@@ -174,10 +175,15 @@ const RENDER = (() => {
     const label = k.type === "fg" ? "FIELD GOAL · " + Math.round(100 - G.los + 17) + " YDS" : k.type === "punt" ? "PUNT" : "KICKOFF";
     ctx.fillStyle = "rgba(0,0,0,.75)"; ctx.fillRect(x0 - 8, y0 - 18, w + 16, 34);
     text(label, VW / 2, y0 - 13, "#ffb627", 8, "center");
-    ctx.fillStyle = "#333"; ctx.fillRect(x0, y0, w, 8);
     ctx.fillStyle = "#c8223a"; ctx.fillRect(x0, y0, w, 8);
-    ctx.fillStyle = "#ffb627"; ctx.fillRect(x0 + w * 0.3, y0, w * 0.4, 8);
-    ctx.fillStyle = "#7fd68f"; ctx.fillRect(x0 + w * 0.44, y0, w * 0.12, 8);
+    if (k.type === "fg") {
+      // Green is exactly the window that makes this kick.
+      const good = 1 - GAME.fgNeed(Math.round(100 - G.los + 17));
+      ctx.fillStyle = "#7fd68f"; ctx.fillRect(x0 + w * (0.5 - good / 2), y0, w * good, 8);
+    } else {
+      ctx.fillStyle = "#ffb627"; ctx.fillRect(x0 + w * 0.3, y0, w * 0.4, 8);
+      ctx.fillStyle = "#7fd68f"; ctx.fillRect(x0 + w * 0.44, y0, w * 0.12, 8);
+    }
     ctx.fillStyle = "#fff"; ctx.fillRect(x0 + w * k.needle - 1, y0 - 3, 3, 14);
   }
 
@@ -194,16 +200,20 @@ const RENDER = (() => {
   function bannerDraw(G) {
     const b = G.banner; if (!b) return;
     const big = b.text.length > 12 ? 14 : 20;
-    ctx.fillStyle = "rgba(0,0,0,.55)"; ctx.fillRect(0, VH / 2 - 24, VW, b.sub ? 50 : 38);
-    text(b.text, VW / 2, VH / 2 - 16, b.color, big, "center");
-    if (b.sub) text(b.sub, VW / 2, VH / 2 + 10, "#f3efe4", 8, "center");
+    // During kicks the banner moves up so it never covers the kicker or the meter.
+    const cy = (G.phase === "kick" || G.phase === "flight") ? TOP + 30 : VH / 2;
+    ctx.fillStyle = "rgba(0,0,0,.55)"; ctx.fillRect(0, cy - 24, VW, b.sub ? 50 : 38);
+    text(b.text, VW / 2, cy - 16, b.color, big, "center");
+    if (b.sub) text(b.sub, VW / 2, cy + 10, "#f3efe4", 8, "center");
   }
 
   function draw(G, time) {
     if (!ctx) return;
     let target = G.ball ? G.ball.x : 50;
     if (G.phase === "kick") target = G.kick.type === "kickoff" ? 45 : G.los + 8;
-    if (G.phase === "presnap") target = G.los + 6;
+    if (G.phase === "presnap") target = G.los + 11;
+    // Before the throw, look downfield so routes stay on screen.
+    if (G.phase === "live" && G.play && G.play.type === "pass" && !G.play.thrown) target = G.los + 10;
     camX += (target - camX) * 0.12;
     camX = clamp(camX, -10 + VW / 2 / PX, 110 - VW / 2 / PX);
     field(G); scrimmageLines(G); playArt(G);

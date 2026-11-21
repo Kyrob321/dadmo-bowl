@@ -51,7 +51,7 @@ const GAME = (() => {
       banner: null, events: [], mash: null, next: null, overT: 0, plays: 0,
     });
     setupKickoff(other(CFG.FIRST_RECEIVER));
-    banner("KICKOFF!", CFG.TEAMS[CFG.FIRST_RECEIVER].name + " RECEIVE", 2);
+    banner("KICKOFF!", CFG.TEAMS[CFG.FIRST_RECEIVER].name + " RECEIVE", 1.4);
   }
 
   function changePoss(team, los) {
@@ -146,19 +146,44 @@ const GAME = (() => {
     G.lastKickAcc = acc;
     if (k.type === "kickoff") {
       const land = 35 + 47 + acc * 18;
-      if (land >= 100) { changePoss(recv, 25); banner("TOUCHBACK", "", 1.4); return dead(1.4, setupScrimmage); }
-      return setupReturn(recv, 100 - land, kt);
+      return flight(35, land, 1.7, () => {
+        if (land >= 100) { changePoss(recv, 25); banner("TOUCHBACK", "", 1.4); return dead(1.4, setupScrimmage); }
+        setupReturn(recv, 100 - land, kt);
+      });
     }
     if (k.type === "punt") {
       const land = G.los + 32 + acc * 18;
-      if (land >= 100) { changePoss(recv, 20); banner("TOUCHBACK", "", 1.4); return dead(1.4, setupScrimmage); }
-      banner("PUNT", Math.round(land - G.los) + " YARDS", 1);
-      return setupReturn(recv, 100 - land, kt);
+      return flight(G.los - 2, land, 1.6, () => {
+        if (land >= 100) { changePoss(recv, 20); banner("TOUCHBACK", "", 1.4); return dead(1.4, setupScrimmage); }
+        banner("PUNT", Math.round(land - G.los) + " YARDS", 1);
+        setupReturn(recv, 100 - land, kt);
+      });
     }
-    // field goal
+    // field goal: the ball sails toward the uprights, then we find out
     const yards = Math.round(100 - G.los + 17);
-    const need = clamp((yards - 17) / 46, 0.15, 0.93);
+    const need = G.kick.need = fgNeed(yards);
     const good = acc >= need;
+    const miss = good ? 0 : (Math.random() < 0.5 ? -1 : 1) * rnd(5, 9);
+    flight(G.los - 7, 110, 1.3, () => fgResult(kt, recv, yards, good), C + miss);
+  }
+
+  function fgNeed(yards) { return clamp((yards - 17) / 46, 0.15, 0.93); }
+
+  function flight(fx, tx, T, then, ty) {
+    G.phase = "flight";
+    G.ball = { state: "air", kick: true, fx, fy: C, tx: Math.min(tx, 109), ty: ty != null ? ty : clamp(C + rnd(-8, 8), 5, W - 5), t: 0, T, h: 7, x: fx, y: C, z: 1 };
+    G.players.forEach(p => { p.vx = p.vy = 0; });
+    G.afterFlight = then;
+  }
+
+  function updateFlight(dt) {
+    const b = G.ball; b.t += dt;
+    const k = Math.min(1, b.t / b.T);
+    b.x = b.fx + (b.tx - b.fx) * k; b.y = b.fy + (b.ty - b.fy) * k; b.z = 1 + b.h * 4 * k * (1 - k);
+    if (b.t >= b.T + 0.35) { const then = G.afterFlight; G.afterFlight = null; then(); }
+  }
+
+  function fgResult(kt, recv, yards, good) {
     event("fg", { team: kt, yards, good });
     if (good) {
       G.score[kt] += 3; G.clockRunning = false;
@@ -195,7 +220,9 @@ const GAME = (() => {
 
     if (G.human[defT]) {
       if (INPUT.pressed(defT, "x")) {
-        const defs = teamPlayers(defT); const i = defs.indexOf(G.control[defT]);
+        // Cycle through defenders from nearest the ball outward.
+        const defs = teamPlayers(defT).sort((a, c) => dist(a, G.ball) - dist(c, G.ball));
+        const i = defs.indexOf(G.control[defT]);
         G.control[defT] = defs[(i + 1) % defs.length];
       }
       const p = G.control[defT], d = INPUT.dir(defT);
@@ -236,7 +263,8 @@ const GAME = (() => {
     }
     if (!p || p.down > 0) return;
     if (INPUT.pressed(team, "z") && p.dive <= 0) {
-      if (b.state === "air" && Math.hypot(p.x - b.tx, p.y - b.ty) < 6) p.jump = 0.5;
+      // While the ball is in the air, Z means jump: it stays "up" until the ball arrives.
+      if (b.state === "air") { if (Math.hypot(p.x - b.tx, p.y - b.ty) < 10) p.jump = b.T - b.t + 0.2; }
       else {
         let dx = d.dx, dy = d.dy;
         if (!d.any && car) { const l = dist(p, car) || 1; dx = (car.x - p.x) / l; dy = (car.y - p.y) / l; }
@@ -281,7 +309,7 @@ const GAME = (() => {
       const ex = o.x - p.x, ey = o.y - p.y, d = Math.hypot(ex, ey);
       if (d > 7 || ex * dirX < -1.5) continue;
       const w = (7 - d) / 7;
-      dy += -(Math.sign(ey) || 1) * w * 1.5;
+      dy += -(Math.sign(ey) || 1) * w * 0.9;
       dx -= dirX * w * 0.25;
     }
     if (p.y < 4) dy += 0.9; if (p.y > W - 4) dy -= 0.9;
@@ -333,7 +361,7 @@ const GAME = (() => {
   function pursue(p, car, mul) {
     const d = dist(p, car);
     const lead = Math.min(d / p.spd, 1.2) * 0.7;
-    seek(p, car.x + car.vx * lead, car.y + car.vy * lead, mul || 1);
+    seek(p, car.x + car.vx * lead, car.y + car.vy * lead, (mul || 1) * 1.06); // pursuit angles + a little hustle
   }
 
   function aiMove(p) {
@@ -348,11 +376,15 @@ const GAME = (() => {
       if (p.role === "DL") return pursue(p, car, 1);
       if (p.role === "CB") { const r = byId(p.man); return seek(p, r.x + r.vx * 0.35 + 1.2, r.y + r.vy * 0.35, 0.97); }
       if (p.role === "LB") {
-        let near = null, nd = 9;
-        for (const r of G.receivers) { const d = Math.abs(r.y - p.y0); if (d < nd && r.x > G.los - 1) { nd = d; near = r; } }
-        return seek(p, G.los + 7, p.y0 + (near ? clamp(near.y - p.y0, -6, 6) : 0), 0.85);
+        // Linebackers pick up the nearest underneath receiver in their area (backs and tight ends in the flat).
+        let near = null, nd = 12;
+        for (const r of G.receivers) { const d = Math.hypot(r.y - p.y0, (r.x - G.los) * 0.5); if (d < nd && r.x < G.los + 12) { nd = d; near = r; } }
+        if (near) return seek(p, clamp(near.x + near.vx * 0.3 + 1.2, G.los + 1, G.los + 10), near.y + near.vy * 0.3, 0.95);
+        return seek(p, G.los + 6, p.y0, 0.85);
       }
-      return seek(p, G.los + 14, C + (q => q ? clamp(q.y - C, -8, 8) : 0)(G.receivers[G.target]), 0.85);
+      // Safety shades toward the deepest receiver (never toward the QB's private target).
+      const deep = G.receivers.reduce((a, r) => (!a || r.x > a.x ? r : a), null);
+      return seek(p, G.los + 14, C + (deep ? clamp(deep.y - C, -8, 8) : 0), 0.85);
     }
     if (b.state === "air") {
       const near = Math.hypot(p.x - b.tx, p.y - b.ty) < 9;
@@ -376,7 +408,10 @@ const GAME = (() => {
     let T = dist(q, r) / CFG.BALL_SPEED;
     let tx = r.x + r.vx * T, ty = r.y + r.vy * T;
     T = Math.hypot(tx - q.x, ty - q.y) / CFG.BALL_SPEED;
-    tx = r.x + r.vx * T; ty = clamp(r.y + r.vy * T, 0.6, W - 0.6);
+    tx = r.x + r.vx * T; ty = r.y + r.vy * T;
+    // The computer quarterback isn't perfect: its throws wander a little, more on long balls.
+    if (!G.human[q.team]) { const miss = 0.6 + T * 1.1; tx += rnd(-miss, miss); ty += rnd(-miss, miss); }
+    ty = clamp(ty, 0.6, W - 0.6);
     G.ball = { state: "air", fx: q.x, fy: q.y, tx, ty, t: 0, T: Math.max(0.25, T), h: 0.8 + T * 2.4, intended: r, x: q.x, y: q.y, z: 1 };
     G.play.thrown = true;
   }
@@ -389,7 +424,7 @@ const GAME = (() => {
       .map(p => ({ p, d: dist(p, spot) })).sort((a, c) => a.d - c.d)[0];
     const r = near(offT, p => p.role === "OL" || p.role === "QB");
     const d = near(defT);
-    const rOk = r && r.d < 1.8, dNear = d && d.d < 1.7;
+    const rOk = r && r.d < 1.8, dNear = d && d.d < 2.3; // a defender within ~2 yards contests the catch
     let out;
     if (dNear) {
       const jumping = d.p.jump > 0 && G.human[defT] && G.control[defT] === d.p;
@@ -397,7 +432,7 @@ const GAME = (() => {
       const pSwat = jumping ? 0.42 : rOk ? 0.32 : 0.5;
       const roll = Math.random();
       out = roll < pInt ? "int" : roll < pInt + pSwat ? "swat" : rOk ? "catch" : "inc";
-    } else out = rOk ? (Math.random() < 0.94 ? "catch" : "drop") : "inc";
+    } else out = rOk ? (Math.random() < 0.9 ? "catch" : "drop") : "inc";
 
     if (out === "catch") {
       G.ball = { state: "held", holder: r.p, x: r.p.x, y: r.p.y, z: 1 };
@@ -435,7 +470,7 @@ const GAME = (() => {
         if (o.team === p.team || o.engaged > 0 || o.down > 0 || o.blockCd > 0) continue;
         if (dist(p, o) > 0.95) continue;
         const line = p.role === "OL" && o.role === "DL";
-        const t = line ? rnd(2.4, 4.2) : rnd(0.6, 1.6);
+        const t = line ? rnd(2.0, 3.8) : rnd(0.6, 1.6);
         p.engaged = o.engaged = t; p.blockCd = o.blockCd = t + (line ? 0.4 : 1.2);
         break;
       }
@@ -447,14 +482,14 @@ const GAME = (() => {
     const pl = G.play;
     for (const p of G.players) {
       if (p.team === car.team || p.down > 0 || p.engaged > 0) continue;
-      const reach = p.dive > 0 ? 1.15 : 0.75;
+      const reach = p.dive > 0 ? 1.2 : 0.9;
       if (dist(p, car) > reach) continue;
       const pocket = car.role === "QB" && pl.type === "pass" && !pl.thrown && !pl.crossed;
       if (pocket) return tackle(car, p, "sack");
       if (p.dive > 0) return tackle(car, p);
       const humanInvolved = (G.human[p.team] && G.control[p.team] === p) || (G.human[car.team] && G.control[car.team] === car);
       if (humanInvolved && !pl.mashUsed && Math.random() < CFG.MASH_CHANCE) return startMash(car, p);
-      if (!p.broke && Math.random() < 0.12) { p.broke = true; p.down = 0.8; continue; }
+      if (!p.broke && Math.random() < 0.06) { p.broke = true; p.down = 0.8; continue; }
       return tackle(car, p);
     }
   }
@@ -471,7 +506,7 @@ const GAME = (() => {
       if (G.human[team]) {
         if (INPUT.pressed(team, "x")) m.meter += 0.055 * sign;
         if (INPUT.pressed(team, "z")) m.meter += 0.055 * sign;
-      } else if (Math.random() < 7.5 * dt) m.meter += 0.05 * sign;
+      } else if (Math.random() < 10 * dt) m.meter += 0.055 * sign; // the computer mashes like a decent human
     };
     push(m.car.team, 1); push(m.def.team, -1);
     m.meter = clamp(m.meter, 0, 1);
@@ -548,9 +583,9 @@ const GAME = (() => {
   function touchdown(team) {
     if (G.phase !== "live") return;
     G.mash = null; G.score[team] += 6; G.clockRunning = false;
-    const xp = Math.random() < 0.96; if (xp) G.score[team] += 1;
+    G.score[team] += 1; // extra points are automatic
     event("td", { team, pickSix: team !== G.poss });
-    banner("TOUCHDOWN!", CFG.TEAMS[team].name + (xp ? "" : " · EXTRA POINT MISSED"), 2.6, CFG.TEAMS[team].trim);
+    banner("TOUCHDOWN!", CFG.TEAMS[team].name, 2.6, CFG.TEAMS[team].trim);
     scored(team, 2.6);
   }
 
@@ -599,6 +634,7 @@ const GAME = (() => {
 
     switch (G.phase) {
       case "kick": return updateKick(dt);
+      case "flight": return updateFlight(dt);
       case "presnap":
         if (G.clock <= 0 && !G.ot) { G.next = setupScrimmage; return endQuarter(); }
         return updatePresnap(dt);
@@ -650,5 +686,5 @@ const GAME = (() => {
     return t;
   }
 
-  return { state: G, newGame, update, sim };
+  return { state: G, newGame, update, sim, fgNeed };
 })();

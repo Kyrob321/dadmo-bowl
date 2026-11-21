@@ -6,9 +6,9 @@ const CFG = {
   },
   QUARTER_SECONDS: 180,   // game clock per quarter; about 15 real minutes for a full game
   FIELD_W: 53.33,         // yards, sideline to sideline
-  SPEED: { QB: 6.3, RB: 7.6, WR: 7.9, TE: 6.8, OL: 5.0, DL: 6.0, LB: 6.8, CB: 7.6, S: 7.4, KR: 7.7, CV: 7.2 },
+  SPEED: { QB: 6.3, RB: 7.6, WR: 7.5, TE: 6.6, OL: 5.0, DL: 6.0, LB: 6.9, CB: 7.6, S: 7.6, KR: 7.7, CV: 7.2 },
   BALL_SPEED: 20,         // yards per second on a throw
   FUMBLE: 0.015,          // chance per tackle
-  MASH_CHANCE: 0.4,       // chance a human tackle turns into a mash-off
+  MASH_CHANCE: 0.25,      // chance a human tackle turns into a mash-off
   FIRST_RECEIVER: 1,      // J Rob gets the ball first
 };

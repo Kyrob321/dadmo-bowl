@@ -13,7 +13,8 @@ const INPUT = (() => {
 
   addEventListener("keydown", e => {
     const m = MAP[e.code]; if (!m) return;
-    e.preventDefault(); kb[m[0]][m[1]] = true; used[m[0]] = true;
+    e.preventDefault(); kb[m[0]][m[1]] = true;
+    if (m[1] === "x" || m[1] === "z") used[m[0]] = true; // only a button press (not a stray direction key) counts as joining
   });
   addEventListener("keyup", e => { const m = MAP[e.code]; if (m) kb[m[0]][m[1]] = false; });
   addEventListener("blur", () => { kb[1] = {}; kb[2] = {}; });

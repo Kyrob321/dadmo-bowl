@@ -23,7 +23,8 @@
       return;
     }
     const G = GAME.state;
-    if (!demo && !G.human[2] && INPUT.active(2)) G.human[2] = true; // Player 2 joins mid-game
+    // Player 2 can take over from the computer mid-game only by connecting a phone.
+    if (!demo && !G.human[2] && window.PADS && window.PADS.connected(2)) G.human[2] = true;
     GAME.update(dt);
     if (G.phase === "over" && G.overT > 2.5) {
       if (demo) { if (G.overT > 6) start({ 1: false, 2: false }); }
