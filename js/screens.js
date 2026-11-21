@@ -56,8 +56,8 @@ const SCREENS = (() => {
       const cx = x0 + w / 2;
       if (!P.human) {
         text("COMPUTER", cx, 112, "#f3efe4", 12, "center");
-        text("PICKS A RANDOM", cx, 140, "#9fb1c5", 8, "center");
-        text("UNLOCKED TEAM", cx, 154, "#9fb1c5", 8, "center");
+        if (window.DADMO_DEV) { text("DEV: PLAYS THE", cx, 140, "#ffb627", 8, "center"); text("P2 TEAM FROM THE PANEL", cx, 154, "#ffb627", 8, "center"); }
+        else { text("PICKS A RANDOM", cx, 140, "#9fb1c5", 8, "center"); text("UNLOCKED TEAM", cx, 154, "#9fb1c5", 8, "center"); }
         helmet(cx - 28, 170, 4, null, s === 2, true);
         continue;
       }

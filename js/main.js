@@ -47,6 +47,7 @@
       const start = prevId ? SEL.list.indexOf(prevId) : SEL.list.indexOf(s === 1 ? "bolts" : "krush");
       SEL.slot[s] = { human: !!human[s], idx: Math.max(0, start), locked: false, lockedId: null, phone: false, flash: 0 };
       if (highlight && s === 1) SEL.slot[s].idx = SEL.list.indexOf(highlight); // the new team, ready to play
+      else if (dev) { const v = document.getElementById(s === 1 ? "devT1" : "devT2").value; if (v) SEL.slot[s].idx = SEL.list.indexOf(v); }
     }
     mode = "select";
   }
@@ -76,7 +77,7 @@
     if ((!S1.human || S1.locked) && (!S2.human || S2.locked)) {
       const teams = { 1: S1.human ? S1.lockedId : null, 2: S2.human ? S2.lockedId : null };
       if (!teams[1]) teams[1] = cpuPick(teams[2]);
-      if (!teams[2]) teams[2] = cpuPick(teams[1]);
+      if (!teams[2]) teams[2] = dev ? document.getElementById("devT2").value : cpuPick(teams[1]);
       teams.home = Math.random() < 0.5 ? 1 : 2; // whose stadium (and weather) this game is at
       if (!dev && PROGRESS.data.games === 0) teams.weather = "clear"; // first game ever: clear skies, easy to read
       WEATHER.setFor(teams[teams.home], teams.weather);
@@ -114,7 +115,6 @@
     document.body.classList.add("playing");
     pause.lastHuman = Object.assign({}, human);
     if (teams) lastTeams = teams;
-    if (dev && !teams) lastTeams = { 1: document.getElementById("devT1").value, 2: document.getElementById("devT2").value };
     GAME.newGame(human, lastTeams);
     mode = "game"; pause.on = false; lastPlays = 0;
   }
@@ -210,7 +210,7 @@
         for (const k of ["up", "down", "left", "right"]) if (INPUT.pressed(s, k)) { const r = PROGRESS.cheatKey(k); if (r) cheatFlash(r === "again"); }
         if (INPUT.pressed(s, "z") || INPUT.pressed(s, "x")) {
           const human = { 1: true, 2: INPUT.active(2) };
-          return dev ? start(human) : openSelect(human);
+          return openSelect(human); // developer mode too: every team is open there, so any team can be tested
         }
       }
       if (demo) { const a = cpuPick(null); start({ 1: false, 2: false }, { 1: a, 2: cpuPick(a) }); }
