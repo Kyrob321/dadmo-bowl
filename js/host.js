@@ -61,7 +61,7 @@
         if (conns[msg.id] && conns[msg.id] !== conn) conns[msg.id].close();
         conns[msg.id] = conn; conn._slot = s; conn._id = msg.id;
         conn.send({ t: "welcome", slot: s });
-        lastLabels[s] = null; // make sure this phone gets the current labels
+        lastLabels[s] = null; lastPick[s] = null; // make sure this phone gets the current labels and pick
         $("slot" + s).classList.add("in");
         $("state" + s).textContent = "READY";
       } else if (msg.t === "bye") {
@@ -95,12 +95,14 @@
   }
 
   // The game reads phone buttons from here (keyboard lives in input.js).
-  const lastLabels = {};
+  const lastLabels = {}, lastPick = {};
   function sendTo(s, msg) { const c = slots[s] && conns[slots[s]]; if (c && c.open) c.send(msg); }
   window.PADS = {
     code: () => code,
     inputs, connected: s => !!(slots[s] && conns[slots[s]]),
     // Only sends when the labels actually change (and always to a phone that just joined).
+    // Team select: what this phone (and only this phone) is looking at.
+    pick(s, P) { const k = JSON.stringify(P); if (lastPick[s] === k) return; lastPick[s] = k; sendTo(s, Object.assign({ t: "pick" }, P)); },
     labels(s, L) { const k = JSON.stringify(L); if (lastLabels[s] === k) return; lastLabels[s] = k; sendTo(s, Object.assign({ t: "labels" }, L)); },
   };
 

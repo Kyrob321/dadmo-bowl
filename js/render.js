@@ -49,7 +49,7 @@ const RENDER = (() => {
   }
 
   function stands(G, time) {
-    if (!crowd) textures();
+    const ck = CFG.TEAMS[1].color + CFG.TEAMS[2].color; if (!crowd || crowd.key !== ck) { textures(); crowd.key = ck; }
     const fast = G.hype > 0 ? 8 : 1.5;
     const img = crowd[Math.floor(time * fast) % 2];
     const off = ((camX * PX * 0.5) % 128 + 128) % 128;
@@ -407,23 +407,86 @@ const RENDER = (() => {
     ball(G);
     for (const t of [1, 2]) if (G.human[t] && G.phase !== "kick" && G.phase !== "over") marker(G, G.control[t], t, time);
     ctx.restore();
+    weather(G, time);
     hud(G); kickMeter(G); mashMeter(G); bannerDraw(G); prompts(G);
     if (window.DADMO_DEV) { ctx.fillStyle = "#ffb627"; ctx.fillRect(VW - 34, VH - 26, 30, 10); text("DEV", VW - 31, VH - 25, "#000", 8); }
   }
 
-  // Pause screen: dims the field and shows a small menu.
-  function pauseMenu(items, sel, time) {
-    ctx.fillStyle = "rgba(5,10,20,.78)"; ctx.fillRect(0, 0, VW, VH);
-    text("PAUSED", VW / 2, 70, "#ffb627", 20, "center");
-    items.forEach((it, i) => {
-      const y = 120 + i * 24, on = i === sel;
-      if (on) { ctx.fillStyle = "#ffb627"; ctx.fillRect(VW / 2 - 90, y - 5, 180, 18); }
-      text(it, VW / 2, y, on ? "#0e1a2b" : "#f3efe4", 8, "center");
-    });
-    text("UP / DOWN TO CHOOSE · Z OR X TO SELECT · PAUSE TO RESUME", VW / 2, 214, "#9fb1c5", 8, "center");
-    const code = window.PADS && window.PADS.code && window.PADS.code();
-    if (code) text("ROOM " + code + " · PHONES STAY CONNECTED", VW / 2, 236, "#7fd68f", 8, "center");
+  // Weather on top of the field (drawn from the clock, so no particle lists to keep).
+  function weather(G, time) {
+    const k = typeof WEATHER !== "undefined" ? WEATHER.kind() : "clear";
+    const h = (i, n) => { const x = Math.sin(i * 127.1 + n * 311.7) * 43758.5453; return x - Math.floor(x); };
+    const fall = (n, vx, vy, w, hgt, col) => {
+      ctx.fillStyle = col;
+      for (let i = 0; i < n; i++) {
+        const x = ((h(i, 1) * (VW + 80) + time * vx) % (VW + 80) + VW + 80) % (VW + 80) - 40;
+        const y = ((h(i, 2) * VH + time * vy * (0.7 + h(i, 3) * 0.6)) % VH + VH) % VH;
+        ctx.fillRect(Math.round(x), Math.round(y), w, hgt);
+      }
+    };
+    switch (k) {
+      case "night": ctx.fillStyle = "rgba(10,20,60,.28)"; ctx.fillRect(0, 0, VW, VH); break;
+      case "sunset": { const g = ctx.createLinearGradient(0, 0, 0, VH); g.addColorStop(0, "rgba(255,120,40,.30)"); g.addColorStop(1, "rgba(120,40,90,.10)"); ctx.fillStyle = g; ctx.fillRect(0, 0, VW, VH); break; }
+      case "dome": ctx.fillStyle = "#3a4250"; ctx.fillRect(0, 0, VW, 6); ctx.fillStyle = "#4c5566"; for (let x = 0; x < VW; x += 24) ctx.fillRect(x, 0, 2, 6); break;
+      case "snow":
+        ctx.fillStyle = "rgba(235,242,255,.16)"; ctx.fillRect(0, 44, VW, VH - 44);
+        fall(90, -14, 38, 2, 2, "rgba(255,255,255,.9)"); fall(60, -8, 22, 1, 1, "rgba(255,255,255,.7)"); break;
+      case "rain":
+        ctx.fillStyle = "rgba(20,40,70,.22)"; ctx.fillRect(0, 0, VW, VH);
+        fall(120, -40, 260, 1, 6, "rgba(170,200,255,.55)"); break;
+      case "neon":
+        ctx.fillStyle = "rgba(60,0,80,.22)"; ctx.fillRect(0, 0, VW, VH);
+        fall(70, -30, 240, 1, 6, "rgba(57,255,106,.55)"); fall(60, -30, 220, 1, 5, "rgba(255,60,200,.5)"); break;
+      case "fog":
+        // soft drifting banks of fog, thicker toward the far end of the screen
+        ctx.fillStyle = "rgba(190,198,205,.14)"; ctx.fillRect(0, 0, VW, VH);
+        for (let i = 0; i < 9; i++) {
+          const x = ((h(i, 5) * (VW + 300) + time * (5 + h(i, 6) * 8)) % (VW + 300)) - 150, y = 50 + h(i, 7) * 220;
+          const g = ctx.createRadialGradient(x, y, 0, x, y, 110);
+          g.addColorStop(0, "rgba(215,222,228,.34)"); g.addColorStop(1, "rgba(215,222,228,0)");
+          ctx.fillStyle = g; ctx.fillRect(x - 110, y - 110, 220, 220);
+        }
+        break;
+      case "wind": fall(26, 520, 6, 18, 1, "rgba(255,255,255,.35)"); fall(40, 380, 10, 3, 1, "rgba(200,180,120,.6)"); break;
+      case "heat":
+        ctx.fillStyle = "rgba(255,150,40,.12)"; ctx.fillRect(0, 0, VW, VH);
+        ctx.fillStyle = "rgba(255,240,200,.07)"; for (let y = 60; y < VH; y += 9) ctx.fillRect(Math.round(Math.sin(time * 3 + y) * 4), y, VW, 1);
+        if (G.quarter >= 4) text("HEAT: TIRED LEGS", VW - 8, VH - 12, "#ffb627", 8, "right"); break;
+      case "sprinklers": {
+        const wet = G.quarter >= 4;
+        if (wet) { ctx.fillStyle = "rgba(80,160,220,.10)"; ctx.fillRect(0, 44, VW, VH - 44); }
+        // water arcs from heads along both sidelines
+        ctx.fillStyle = "rgba(190,230,255,.7)";
+        for (let j = 0; j < (wet ? 6 : 2); j++) for (let i = 0; i < 14; i++) {
+          const t = ((time * 0.8 + i / 14 + j * 0.37) % 1), bx = 40 + j * 80, side = j % 2;
+          const x = bx + t * 60, y = (side ? VH - 6 : 46) + (side ? -1 : 1) * (Math.sin(t * Math.PI) * 30);
+          ctx.fillRect(Math.round(x), Math.round(y), 2, 2);
+        }
+        if (wet) text("SPRINKLERS ON!", VW - 8, VH - 12, "#6fb3a8", 8, "right"); break;
+      }
+      case "crt":
+        fall(40, -6, 18, 1, 1, "rgba(255,255,255,.6)");
+        ctx.fillStyle = "rgba(0,0,0,.18)"; for (let y = 0; y < VH; y += 2) ctx.fillRect(0, y, VW, 1);
+        if (Math.floor(time * 7) % 23 === 0) { ctx.fillStyle = "rgba(255,255,255,.12)"; ctx.fillRect(0, Math.floor(h(Math.floor(time), 4) * VH), VW, 6); }
+        break;
+    }
   }
 
-  return { init, draw, pauseMenu };
+  // Pause screen: dims the field and shows a small menu.
+  function pauseMenu(items, sel, time, msg) {
+    ctx.fillStyle = "rgba(5,10,20,.78)"; ctx.fillRect(0, 0, VW, VH);
+    text("PAUSED", VW / 2, items.length > 5 ? 56 : 70, "#ffb627", 20, "center");
+    const gap = Math.min(24, Math.max(12, Math.floor(118 / Math.max(1, items.length - 1)))), y0 = items.length > 5 ? 96 : 120;
+    items.forEach((it, i) => {
+      const y = y0 + i * gap, on = i === sel;
+      if (on) { const h = Math.min(18, gap); ctx.fillStyle = "#ffb627"; ctx.fillRect(VW / 2 - 100, y - (h - 8) / 2 - 1, 200, h); }
+      text(it, VW / 2, y, on ? "#0e1a2b" : "#f3efe4", 8, "center");
+    });
+    text("UP / DOWN TO CHOOSE · Z OR X TO SELECT · PAUSE TO RESUME", VW / 2, 258, "#9fb1c5", 8, "center");
+    if (msg) text(msg, VW / 2, 272, "#ffb627", 8, "center");
+    const code = window.PADS && window.PADS.code && window.PADS.code();
+    if (code && !msg) text("ROOM " + code + " · PHONES STAY CONNECTED", VW / 2, 272, "#7fd68f", 8, "center");
+  }
+
+  return { init, draw, pauseMenu, text, ctx: () => ctx, VW, VH };
 })();

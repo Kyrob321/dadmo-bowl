@@ -55,6 +55,8 @@
         showStick(!!msg.stick);
         document.querySelector('.b[data-k="x"]').classList.toggle("off", !msg.x);
         document.querySelector('.b[data-k="z"]').classList.toggle("off", !msg.z);
+      } else if (msg.t === "pick") {
+        showPick(msg);
       } else if (msg.t === "pong") {
         send({ t: "rtt", ms: performance.now() - msg.ts });
       } else if (msg.t === "full") {
@@ -62,6 +64,25 @@
       }
     });
     conn.on("close", () => { clearInterval(pingTimer); if (left) return; setStatus("DROPPED · RETRYING", "bad"); retryTimer = setTimeout(connect, 1500); });
+  }
+
+  // Team select: a private card in the middle of the pad. Nobody else can see what you're browsing.
+  function showPick(m) {
+    const box = $("pick"), logo = $("logoMid");
+    if (m.off) { box.hidden = true; logo.hidden = false; return; }
+    box.hidden = false; logo.hidden = true;
+    const esc = v => String(v == null ? "" : v).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+    let h = '<div class="pk-n">' + esc(m.n) + '</div>';
+    if (m.open) {
+      h += '<div class="pk-helm" style="background:' + esc(m.helm || m.color) + ';box-shadow:inset 0 0 0 4px ' + esc(m.trim) + '"></div>';
+      h += '<div class="pk-name" style="color:' + esc(m.color) + '">' + esc(m.name) + '</div><div class="pk-tag">' + esc(m.tag) + '</div><div class="pk-star">' + esc(m.star) + '</div>';
+      if (m.tape) h += '<div class="pk-tape">' + Object.entries(m.tape).map(([k, v]) => '<span>' + esc(k) + '</span><i><b style="width:' + (v * 10) + '%;background:' + esc(m.color) + '"></b></i>').join("") + '</div>';
+      h += m.locked ? '<div class="pk-lock ok">LOCKED IN! WAITING…</div>' : m.taken ? '<div class="pk-lock bad">TAKEN · PICK ANOTHER</div>' : '<div class="pk-lock">Z TO LOCK IN</div>';
+    } else {
+      h += '<div class="pk-helm mystery">?</div><div class="pk-name">' + esc(m.name) + '</div><div class="pk-tag bad">LOCKED</div><div class="pk-star">' + esc(m.goal) + '</div>';
+      if (m.prog) h += '<div class="pk-prog"><b style="width:' + Math.min(100, 100 * m.prog[0] / m.prog[1]) + '%"></b></div><div class="pk-tag">' + m.prog[0] + '/' + m.prog[1] + '</div>';
+    }
+    box.innerHTML = h;
   }
 
   function sendState() { send({ t: "in", k: Object.assign({}, state, { ax: stick.ax, ay: stick.ay }) }); }

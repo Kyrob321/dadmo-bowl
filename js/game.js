@@ -25,6 +25,7 @@ const GAME = (() => {
     n = n == null ? 1 : n; team = team || G.poss;
     G.stats[k] = (G.stats[k] || 0) + n;
     const b = G.stats.by && G.stats.by[team]; if (b) b[k] = (b[k] || 0) + n;
+    if (G.quarter >= 4 && G.stats.q4) G.stats.q4[k] = (G.stats.q4[k] || 0) + n; // late-game weather checks
   }
   const teamOf = slot => TEAMS.byId[RATINGS.SLOT_TEAM[slot]] || TEAMS.byId.krush;
 
@@ -59,6 +60,8 @@ const GAME = (() => {
     if (p.burst > 0) s *= 1.3;
     if (p.engaged > 0) s *= 0.12;
     if (p.slowT > 0) s *= p.slowMul;
+    s *= WEATHER.get("spd");
+    if (G.ball && G.ball.state === "held" && G.ball.holder === p) s *= WEATHER.get("carry"); // cutting with the ball on a slick field
     p.vx = dx * s; p.vy = dy * s;
     const dropping = p.role === "QB" && G.play && G.play.type === "pass" && !G.play.thrown && !G.play.crossed && p.side === "off";
     if (Math.abs(dx) > 0.1 && !dropping) p.face = dx > 0 ? 1 : -1;
@@ -103,8 +106,12 @@ const GAME = (() => {
       score: { 1: 0, 2: 0 }, quarter: 1, clock: Q, clockRunning: false, ot: false,
       banner: null, events: [], mash: null, next: null, overT: 0, plays: 0,
       time: 0, fx: [], pops: [], shake: 0, celebrate: 0, hype: 0, rep: null,
-      stats: Object.assign(freshStats(), { by: { 1: freshStats(), 2: freshStats() } }), lastZ: { 1: -9, 2: -9 },
+      stats: Object.assign(freshStats(), { by: { 1: freshStats(), 2: freshStats() }, q4: freshStats() }), lastZ: { 1: -9, 2: -9 },
     });
+    // One team is at home; the game gets that stadium's weather.
+    G.windDir = Math.random() < 0.5 ? -1 : 1;
+    G.home = (teams && teams.home) || (Math.random() < 0.5 ? 1 : 2);
+    WEATHER.setFor(CFG.TEAMS[G.home].id);
     setupKickoff(other(CFG.FIRST_RECEIVER));
     banner("KICKOFF!", CFG.TEAMS[CFG.FIRST_RECEIVER].name + " RECEIVE", 1.4);
   }
@@ -235,8 +242,12 @@ const GAME = (() => {
       });
     }
     const yards = Math.round(100 - G.los + 17);
+    bump("fgAtt", 1, kt);
+    acc *= WEATHER.get("kick");
     const good = acc >= fgNeed(yards);
-    const miss = good ? 0 : (Math.random() < 0.5 ? -1 : 1) * rnd(5, 9);
+    // wind pushes every kick sideways a little (made kicks still go through)
+    const drift = WEATHER.drift() ? (G.windDir || 1) * rnd(1, 3) : 0;
+    const miss = good ? drift * 0.4 : (Math.random() < 0.5 ? -1 : 1) * rnd(5, 9) + drift;
     flight(G.los - 7, 110, 1.3, () => fgResult(kt, recv, yards, good), C + miss);
   }
 
@@ -447,7 +458,10 @@ const GAME = (() => {
     for (const o of G.players) if (o.team !== r.team) m = Math.min(m, dist(o, r));
     const depth = r.x - G.los;
     const st = teamOf(r.team).style, sb = st.short; // how much this team's QB prefers the short throw
-    return m + (depth < K.QB_SHORT ? (sb != null ? sb : K.QB_SHORT_BONUS) : 0) + (depth >= 15 ? (st.deep || 0) : 0);
+    // Fog and wind: receivers heading deep are harder to trust. (Measured at the moment the QB decides,
+    // when deep routes are usually 10+ yards out and still climbing.)
+    const look = depth >= 10 ? WEATHER.get("deepLook") : 1;
+    return m * look + (depth < K.QB_SHORT ? (sb != null ? sb : K.QB_SHORT_BONUS) : 0) + (depth >= 15 ? (st.deep || 0) : 0);
   }
 
   function cpuQB(q) {
@@ -596,6 +610,7 @@ const GAME = (() => {
     let miss = K.ACC_MISS * (0.3 + T * 0.9) * (1.55 - q.r.acc / 100);
     // Throwing with a rusher in your face: the ball comes out less accurate.
     if (G.players.some(o => o.team !== q.team && o.down <= 0 && dist(o, q) < 3)) miss *= K.PRESSURE_MISS;
+    miss *= WEATHER.get("miss"); if (tx - G.los >= 15) miss *= WEATHER.get("deepMiss");
     tx += gauss() * miss; ty += gauss() * miss;
     ty = clamp(ty, 0.6, W - 0.6);
     T = Math.max(0.25, T);
@@ -620,7 +635,7 @@ const GAME = (() => {
     const dropOut = () => { anim(r.p, "catch", 0.45); bump("drops"); incomplete("DROPPED!", "drop", r.p); };
     if (!rOk && !contested) return incomplete("INCOMPLETE", "miss");
     if (rOk && !contested) {
-      if (Math.random() < K.DROP_BASE + K.DROP_SCALE * (1 - r.p.r.catch / 100)) return dropOut();
+      if (Math.random() < (K.DROP_BASE + K.DROP_SCALE * (1 - r.p.r.catch / 100)) * WEATHER.get("drop")) return dropOut();
       return completeTo(r.p, null);
     }
     // ----- contested: a hidden rep, positive favors the receiver -----
@@ -815,6 +830,7 @@ const GAME = (() => {
     // Landing in the green earns an extra bonus on top of the timing difference.
     const green = (move && qo >= 0.5 ? K.GREEN : 0) - (qd >= 0.5 ? K.GREEN : 0);
     let s = K.TK_BIAS + K.TK_TIMING * (qo - qd) + green + K.TK_RATING * (rOff - def.r.tkl) / 30 + moveBonus(move, car, def) + help + gauss() * K.TK_SIGMA;
+    s += WEATHER.get("brk", G.quarter); // heat and soaked fields wear tacklers down late
     s = clamp(Math.round(s * 10) / 10, -2, 2);
     bump("tackleReps"); ST().repScores.push(s);
     if (humanDef) { ST().myReps = (ST().myReps || 0) + 1; if (s <= -0.2) ST().myTackles = (ST().myTackles || 0) + 1; }
@@ -883,6 +899,7 @@ const GAME = (() => {
     if (kind !== "sack") {
       let pf = K.FUMBLE_BASE + (s != null ? K.FUMBLE_BIG * Math.max(0, -s - 1) : 0);
       pf *= teamOf(by.team).flags.fumbleMul || 1;
+      pf *= WEATHER.get("fum", G.quarter);
       if (teamOf(car.team).flags.noFumble) pf = 0;
       if (Math.random() < pf) {
         bump("fumbles");
@@ -895,7 +912,7 @@ const GAME = (() => {
         const recTeam = lost ? by.team : car.team;
         const rec = recTeam === car.team ? (G.players.filter(p => p.team === car.team && p !== car).sort((a, c) => dist(a, car) - dist(c, car))[0] || car) : by;
         if (rec !== car) { rec.x = car.x + vx * 0.5; rec.y = car.y + vy * 0.5; rec.lying = true; anim(rec, "dive", 0.4); }
-        event("fumble", { lost });
+        event("fumble", { lost, by: by.team });
         return endPlay({ type: "tackle", x: car.x, carrierTeam: lost ? by.team : car.team });
       }
     }
@@ -917,7 +934,7 @@ const GAME = (() => {
     const gain = x - pl.startLos;
     if (pl.type === "run" && pl.handed) { bump("rushYds", gain); bump("touches"); }
     else if (pl.type === "run") bump("rushYds", gain); // tackled before the handoff
-    else if (pl.type === "pass" && pl.caughtAt != null) bump("passYds", gain);
+    else if (pl.type === "pass" && pl.caughtAt != null) { bump("passYds", gain); event("passGain", { team: G.poss, gain }); }
     else if (pl.type === "pass" && (pl.crossed || pl.scramble) && !pl.thrown) { bump("runs"); bump("dropbacks", -1); bump("scrambles"); bump("rushYds", gain); } // scramble counts as a run
   }
 

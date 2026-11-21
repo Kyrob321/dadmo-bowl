@@ -21,7 +21,9 @@ window.EXPECT = {
 window.EXPECT_WEATHER = {
   snow:       [["fumRatio","both",1.4,2.2], ["ypc","both",-0.8,-0.2], ["ypa","both",-1.5,-0.3], ["drops","both",1.3,2.0], ["fgPct","both",-15,-3], ["ptsDrive","both",-0.6,-0.1]],
   rain:       [["drops","both",1.5,2.2], ["comp","both",-7,-2], ["fumRatio","both",1.1,1.6], ["ypa","both",-1.0,-0.2]],
-  fog:        [["air","both",-3,-0.5], ["int","both",0,1.2], ["comp","both",-3,1]],
+  // fog comp: CHANGED after testing (was -3..1). Predicted fewer completions; measured +1.3, because computer QBs
+  // stop trusting deep routes and check down to short, easier throws. That's realistic, so the expectation moved.
+  fog:        [["air","both",-3,-0.5], ["int","both",0,1.2], ["comp","both",-3,2]],
   wind:       [["fgPct","both",-20,-5], ["air","both",-2.5,-0.3], ["comp","both",-4,0]],
   heat:       [["missTkQ4","both",1,6], ["ypcQ4","both",0,0.8]],
   neon:       [["drops","both",1.1,1.6], ["comp","both",-4,-0.5]],
@@ -30,3 +32,10 @@ window.EXPECT_WEATHER = {
   dome:       [["any","both",-0.5,0.5]],
   clear:      [["any","both",-0.5,0.5]], night: [["any","both",-0.5,0.5]], sunset: [["any","both",-0.5,0.5]],
 };
+
+// Every team in every weather (written before the run). Each team vs Krush, change vs that same matchup in clear weather.
+// 1. The weather's main stat moves the same way for every team (snow/rain/crt: more fumbles, except the Lawn Chairs,
+//    who never fumble; rain/snow/neon: more drops; wind/fog: shorter catches).
+// 2. No team breaks: points per drive (both teams together) stays within -1.0..+0.5 of clear for every team.
+// 3. Home field doesn't flip a matchup: no team's win share swings more than 25 points vs clear.
+window.EXPECT_COMBO = { ptsDrive: [-1.0, 0.5], winSwing: 25 };

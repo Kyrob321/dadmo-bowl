@@ -66,3 +66,17 @@ body {
 .join-form[hidden] { display: none; }
 .join-form input { font: 28px var(--font); width: 6.5em; text-align: center; text-transform: uppercase; padding: 10px; background: #000; color: var(--amber); border: 3px solid var(--chalk); }
 .join-form button { font: 12px var(--font); padding: 14px 18px; background: var(--amber); color: #000; border: 0; }
+
+/* Team select card (private to this phone) */
+.pick { grid-column: 2; grid-row: 2; width: min(44vw, 330px); max-height: 82vh; overflow: hidden; background: #111a28; color: var(--chalk); border: 3px solid #000; border-radius: 6px; padding: 10px 12px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 9px; line-height: 1.5; }
+.pick[hidden], .logo-mid[hidden] { display: none; }
+.pk-n { align-self: flex-end; font-size: 7px; color: #9fb1c5; }
+.pk-helm { width: 44px; height: 36px; border-radius: 22px 22px 6px 10px; }
+.pk-helm.mystery { background: #3a4658; color: var(--amber); font-size: 16px; display: flex; align-items: center; justify-content: center; }
+.pk-name { font-size: 10px; }
+.pk-tag { font-size: 7px; color: #9fb1c5; } .pk-tag.bad, .pk-lock.bad { color: #ef5a45; }
+.pk-star { font-size: 7px; color: #ffe14a; }
+.pk-tape { display: grid; grid-template-columns: auto 1fr; gap: 3px 6px; width: 100%; font-size: 6px; text-align: left; align-items: center; }
+.pk-tape i { display: block; height: 6px; background: #22324a; } .pk-tape b { display: block; height: 100%; }
+.pk-lock { font-size: 8px; color: var(--amber); } .pk-lock.ok { color: #7fd68f; }
+.pk-prog { width: 90%; height: 8px; background: #22324a; } .pk-prog b { display: block; height: 100%; background: var(--amber); }
