@@ -29,6 +29,7 @@ const SFX = (() => {
     // helmets crashing together
     slam() { noise(0, 0.25, 0.25); tone(110, 0, 0.3, "square", 0.12, 40); },
     buzz() { tone(90, 0, 0.18, "sawtooth", 0.07); },
+    roar() { noise(0, 1.2, 0.08); noise(0.2, 1.0, 0.06); },
     blip() { tone(880, 0, 0.05, "square", 0.04); },
     lock() { tone(660, 0, 0.08, "square", 0.06); tone(990, 0.07, 0.12, "square", 0.06); },
     fanfare() { [392, 523, 659, 784, 659, 784, 1047].forEach((f, i) => tone(f, i * 0.12, 0.22, "square", 0.06)); },

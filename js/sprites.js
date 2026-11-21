@@ -122,8 +122,8 @@ const SPRITES = (() => {
     const T = CFG.TEAMS[team], sk = SKINS[skin % SKINS.length];
     return {
       jersey: T.color, jerseyDark: T.dark, helmet: T.helmet || T.trim, helmetShade: shade(T.helmet || T.trim, -40), stripe: T.color,
-      pants: team === 1 ? "#f0d27a" : "#e9e6dc", pantsShade: team === 1 ? "#c9a84e" : "#bdb9ad",
-      number: "#ffffff", skin: sk[0], skinDark: sk[1],
+      pants: T.pants || "#e9e6dc", pantsShade: shade(T.pants || "#e9e6dc", -40),
+      number: T.number || "#ffffff", skin: sk[0], skinDark: sk[1],
     };
   }
   function shade(hex, amt) {
@@ -135,7 +135,7 @@ const SPRITES = (() => {
   // Returns a ready canvas. face: 1 right, -1 left.
   function get(team, skin, pose, frame, face) {
     const T = CFG.TEAMS[team];
-    const key = T.color + (T.helmet || T.trim) + "|" + skin + "|" + pose + "|" + frame + "|" + face;
+    const key = T.color + (T.helmet || T.trim) + (T.pants || "") + (T.number || "") + "|" + skin + "|" + pose + "|" + frame + "|" + face;
     let c = cache.get(key);
     if (c) return c;
     const base = render(POSES[pose](frame || 0), palette(team, skin));

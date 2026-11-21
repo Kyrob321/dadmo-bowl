@@ -93,11 +93,21 @@
     }
   }
   const VS = { teams: null, t: 0, slammed: false };
+  // Star walkouts: player 1's superstar, then player 2's, before kickoff. Z skips.
+  const WALK = { i: 1, t: 0 };
+  function walkoutStep(dt) {
+    WALK.t += dt;
+    const skip = WALK.t > 0.3 && (INPUT.pressed(1, "z") || INPUT.pressed(2, "z") || INPUT.pressed(1, "x") || INPUT.pressed(2, "x"));
+    if (WALK.t > 3.2 || skip) {
+      if (WALK.i === 1 && !skip) { WALK.i = 2; WALK.t = 0; SFX.roar(); return; }
+      start(pause.lastHuman, VS.teams);
+    }
+  }
   function versusStep(dt) {
     VS.t += dt;
     if (VS.t > 0.55 && !VS.slammed) { VS.slammed = true; SFX.slam(); }
     const go = VS.t > 6 || (VS.t > 1.0 && (INPUT.pressed(1, "z") || INPUT.pressed(2, "z") || INPUT.pressed(1, "x") || INPUT.pressed(2, "x")));
-    if (go) { VS.slammed = false; start(pause.lastHuman, VS.teams); }
+    if (go) { VS.slammed = false; WALK.i = 1; WALK.t = 0; GAME.setTeams(VS.teams[1], VS.teams[2], VS.teams.home); mode = "walkout"; SFX.roar(); }
   }
   // What a phone shows while picking: the team it's on (only that phone sees it).
   function pickFor(s) {
@@ -177,7 +187,8 @@
     if (mode === "select") { const P = SEL.slot[t]; if (!P.human) return L;
       return P.locked ? Object.assign(L, { x: "CHANGE" }) : Object.assign(L, { x: "BACK", z: "LOCK IN", left: "PREV", right: "NEXT" },
         SEL.vsCpu ? { up: "HARDER", down: "EASIER" } : { up: "PREV", down: "NEXT" }); }
-    if (mode === "versus") return Object.assign(L, { z: "KICK OFF", x: "KICK OFF" });
+    if (mode === "versus") return Object.assign(L, { z: "NEXT", x: "NEXT" });
+    if (mode === "walkout") return Object.assign(L, { z: "SKIP", x: "SKIP" });
     if (mode === "unlock") return Object.assign(L, { z: "PLAY THEM" });
     const G = GAME.state;
     if (!G.human[t]) return L;
@@ -228,6 +239,7 @@
     }
     if (mode === "select") return selectStep(dt);
     if (mode === "versus") return versusStep(dt);
+    if (mode === "walkout") return walkoutStep(dt);
     if (mode === "unlock") { UNLOCK.t += dt; if (UNLOCK.t > 1.6 && (INPUT.pressed(1, "z") || INPUT.pressed(2, "z"))) { const id = UNLOCK.id; UNLOCK.id = null; openSelect(pause.lastHuman, id); } return; }
     const G = GAME.state;
     if (pause.on) return pauseStep();
@@ -257,6 +269,7 @@
     if (mode === "game") { RENDER.draw(GAME.state, now / 1000); if (pause.on) RENDER.pauseMenu(PAUSE_ITEMS, pause.sel, now / 1000, pause.msg); }
     else if (mode === "select") SCREENS.select(SEL, now / 1000);
     else if (mode === "versus") SCREENS.versus(VS.teams, VS.t);
+    else if (mode === "walkout") SCREENS.walkout(VS.teams[WALK.i], WALK.i, WALK.t);
     else if (mode === "unlock") SCREENS.challenger(UNLOCK.id, UNLOCK.t);
   }
   // For tests: run n frames by hand (the browser pauses animation when the window is hidden).

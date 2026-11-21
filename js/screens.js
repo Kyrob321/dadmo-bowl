@@ -134,7 +134,7 @@ const SCREENS = (() => {
       const ht = TEAMS.byId[teams[teams.home]];
       text("AT " + ht.short + " STADIUM · " + (WEATHER.enabled() ? WEATHER.KINDS[ht.home].label : "WEATHER OFF"), VW / 2, 250, "#9fb1c5", 8, "center");
     }
-    if (t > 1.6) text("Z TO KICK OFF", VW / 2, 270, Math.floor(t * 3) % 2 ? "#f3efe4" : "#ffb627", 8, "center");
+    if (t > 1.6) text("Z: MEET THE SUPERSTARS", VW / 2, 270, Math.floor(t * 3) % 2 ? "#f3efe4" : "#ffb627", 8, "center");
   }
 
   // ---------- NEW CHALLENGER ----------
@@ -157,5 +157,48 @@ const SCREENS = (() => {
     if (t > 1.6) text("PICK THEM NEXT GAME · Z TO CONTINUE", VW / 2, 252, "#9fb1c5", 8, "center");
   }
 
-  return { select, versus, challenger, helmet };
+  // ---------- STAR WALKOUT ----------
+  // The superstar walks out of a pixel tunnel into a spotlight. slot: 1 or 2 (uses that slot's uniform).
+  function walkout(teamId, slot, t) {
+    const c = R(), tm = TEAMS.byId[teamId], inf = STARS.info(teamId, STARS.DEF[teamId].keys[0]);
+    c.fillStyle = "#05070c"; c.fillRect(0, 0, VW, VH);
+    // the tunnel: rings in team colors rushing toward you
+    const cx = VW / 2, cy = 120;
+    for (let i = 9; i >= 0; i--) {
+      const z = ((i + (t * 2.2) % 1) / 10), w = 30 + z * z * 900, h = 20 + z * z * 560;
+      c.fillStyle = i % 2 ? tm.color : tm.dark; c.globalAlpha = Math.min(1, z * 1.6);
+      c.fillRect(Math.round(cx - w / 2), Math.round(cy - h / 2), Math.round(w), Math.round(h));
+      c.fillStyle = "#05070c"; c.fillRect(Math.round(cx - w / 2 + 3), Math.round(cy - h / 2 + 3), Math.round(w - 6), Math.round(h - 6));
+    }
+    c.globalAlpha = 1;
+    // tunnel lights flicker on as he walks
+    for (let i = 0; i < 6; i++) if (t * 4 > i) { c.fillStyle = "#ffe9a8"; c.fillRect(cx - 120 + i * 48, 26, 6, 3); }
+    // spotlight cone
+    const g = c.createLinearGradient(0, 0, 0, VH); g.addColorStop(0, "rgba(255,240,190,.28)"); g.addColorStop(1, "rgba(255,240,190,.06)");
+    c.fillStyle = g; c.beginPath(); c.moveTo(cx - 14, 0); c.lineTo(cx + 14, 0); c.lineTo(cx + 90, VH); c.lineTo(cx - 90, VH); c.closePath(); c.fill();
+    // smoke along the floor
+    for (let i = 0; i < 14; i++) { const x = ((i * 53 + t * 30) % (VW + 80)) - 40; c.fillStyle = "rgba(200,210,220,.10)"; c.fillRect(Math.round(x), 238 + (i % 3) * 6, 70, 14); }
+    // the star walks toward the camera and grows
+    const k = ease(Math.min(1, t / 1.6)), sc = 1 + k * 3, y = 150 + k * 108;
+    const arrived = t > 1.6;
+    const img = SPRITES.get(slot, 0, arrived ? "celebrate" : "run", arrived ? Math.floor(t * 4) % 2 : Math.floor(t * 9) % 6, 1);
+    c.imageSmoothingEnabled = false;
+    c.fillStyle = "rgba(0,0,0,.45)"; c.fillRect(Math.round(cx - 7 * sc), Math.round(y - 1), Math.round(14 * sc), Math.max(2, Math.round(2 * sc)));
+    c.drawImage(img, Math.round(cx - SPRITES.OX * sc), Math.round(y - SPRITES.OY * sc), Math.round(SPRITES.SW * sc), Math.round(SPRITES.SH * sc));
+    // camera flashes in the crowd once he's out
+    if (arrived) for (let i = 0; i < 5; i++) if (Math.random() < 0.25) { c.fillStyle = "#fff"; c.fillRect(Math.random() * VW, 8 + Math.random() * 40, 2, 2); }
+    // name card
+    if (t > 0.5) {
+      text(tm.name, 14, 14, CFGtrim(tm), 8);
+      text(inf.name, 14, 28, "#f3efe4", 16);
+    }
+    if (t > 1.1) {
+      c.fillStyle = "rgba(0,0,0,.6)"; c.fillRect(VW - 236, 200, 228, 40);
+      text("★ " + inf.power, VW - 14, 206, "#ffe14a", 10, "right");
+      text(inf.blurb, VW - 14, 224, "#9fb1c5", 8, "right");
+    }
+    text("Z TO SKIP", VW - 8, VH - 12, "#55627a", 8, "right");
+  }
+
+  return { select, versus, challenger, helmet, walkout };
 })();

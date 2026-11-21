@@ -137,15 +137,36 @@ const GAME = (() => {
 
   // ---------- game flow ----------
   // Put two teams in the slots: colors and names for drawing, ratings and styles for play.
-  function setTeams(t1, t2) {
+  function setTeams(t1, t2, home) {
     RATINGS.SLOT_TEAM[1] = t1; RATINGS.SLOT_TEAM[2] = t2;
     // "trim" is used for on-screen text, so very dark trims swap to the main color; helmets keep the real trim.
     const lum = h => { const n = parseInt(h.slice(1), 16); return (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255; };
-    for (const s of [1, 2]) { const t = teamOf(s); CFG.TEAMS[s] = { id: t.id, name: t.name, short: t.short, color: t.color, dark: t.dark, helmet: t.trim, trim: lum(t.trim) < 0.3 ? t.color : t.trim }; }
+    const rgb = h => { const n = parseInt(h.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; };
+    const far = (a, b) => { const x = rgb(a), y = rgb(b); return Math.hypot(x[0] - y[0], x[1] - y[1], x[2] - y[2]); };
+    for (const s of [1, 2]) { const t = teamOf(s); CFG.TEAMS[s] = { id: t.id, name: t.name, short: t.short, color: t.color, dark: t.dark, helmet: t.trim, trim: lum(t.trim) < 0.3 ? t.color : t.trim, pants: t.pants || "#e9e6dc", number: "#ffffff", away: false }; }
+    // Uniform clash (or the same team twice): the visiting team wears its white road jerseys.
+    const A = CFG.TEAMS[1], B = CFG.TEAMS[2];
+    // Colors clash when they're the same hue and similar brightness (or nearly identical, for greys).
+    const hsl = h => { const [r, g, b] = rgb(h).map(v => v / 255), mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn;
+      const sat = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1)); let hue = 0;
+      if (d) hue = mx === r ? 60 * (((g - b) / d) % 6) : mx === g ? 60 * ((b - r) / d + 2) : 60 * ((r - g) / d + 4);
+      return [(hue + 360) % 360, sat, l]; };
+    const clash = (a, b) => { const x = hsl(a), y = hsl(b);
+      if (x[1] < 0.2 || y[1] < 0.2) return far(a, b) < 100;
+      const dh = Math.min(Math.abs(x[0] - y[0]), 360 - Math.abs(x[0] - y[0]));
+      return (dh < 40 && Math.abs(x[2] - y[2]) < 0.28) || far(a, b) < 100; };
+    if (clash(A.color, B.color) || A.id === B.id) {
+      const v = CFG.TEAMS[home === 1 ? 2 : 1], h = CFG.TEAMS[home === 1 ? 1 : 2], t = TEAMS.byId[v.id];
+      // If the home team already wears white-ish, the visitors wear a dark alternate instead.
+      if (lum(h.color) > 0.6) { Object.assign(v, { color: "#22262e", dark: "#14161a", number: t.color, away: true }); return; }
+      Object.assign(v, { color: "#f3efe4", dark: "#c9c4b8", number: lum(t.color) > 0.75 ? t.trim : t.color, pants: lum(t.color) > 0.75 ? t.trim : t.color, away: true,
+        trim: v.trim === "#f3efe4" || lum(v.trim) > 0.85 ? (lum(t.color) > 0.75 ? t.trim : t.color) : v.trim });
+    }
   }
 
   function newGame(human, teams) {
-    if (teams) setTeams(teams[1], teams[2]);
+    const home = (teams && teams.home) || (Math.random() < 0.5 ? 1 : 2);
+    if (teams) setTeams(teams[1], teams[2], home);
     Object.assign(G, {
       human: Object.assign({ 1: true, 2: false }, human || {}),
       score: { 1: 0, 2: 0 }, quarter: 1, clock: Q, clockRunning: false, ot: false,
@@ -157,7 +178,7 @@ const GAME = (() => {
     G.boost = (teams && teams.boost) || { 1: 0, 2: 0 };
     G.powers = !(teams && teams.powers === false);
     G.windDir = Math.random() < 0.5 ? -1 : 1;
-    G.home = (teams && teams.home) || (Math.random() < 0.5 ? 1 : 2);
+    G.home = home;
     WEATHER.setFor(CFG.TEAMS[G.home].id, teams && teams.weather);
     setupKickoff(other(CFG.FIRST_RECEIVER));
     banner("KICKOFF!", CFG.TEAMS[CFG.FIRST_RECEIVER].name + " RECEIVE", 1.4);

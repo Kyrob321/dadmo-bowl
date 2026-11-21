@@ -20,7 +20,7 @@ const RENDER = (() => {
   }
 
   // Pre-rendered textures: grass speckle tile and two frames of crowd.
-  let grassTile = null, crowd = null;
+  let grassTile = null, crowd = null, crowdHome = 1;
   function textures() {
     const g = document.createElement("canvas"); g.width = g.height = 32;
     const gx = g.getContext("2d");
@@ -30,6 +30,8 @@ const RENDER = (() => {
     }
     grassTile = ctx.createPattern(g, "repeat");
     const T = CFG.TEAMS, misc = ["#d9d4c7", "#5b6470", "#8a5a3c", "#3d3d3d", "#b88c4a", "#6f8fb3"];
+    const H = T[crowdHome] || T[1], A = T[crowdHome === 2 ? 1 : 2] || T[2];
+    const hc = TEAMS.byId[H.id] ? TEAMS.byId[H.id].color : H.color, ac = TEAMS.byId[A.id] ? TEAMS.byId[A.id].color : A.color;
     crowd = [0, 1].map(f => {
       const c = document.createElement("canvas"); c.width = 640; c.height = 18;
       const x = c.getContext("2d");
@@ -37,7 +39,8 @@ const RENDER = (() => {
       for (let row = 0; row < 3; row++) {
         x.fillStyle = row % 2 ? "#242c3d" : "#1a2130"; x.fillRect(0, row * 6, 640, 6);
         for (let i = 0; i < 160; i++) {
-          const r = Math.random(), col = r < 0.38 ? T[1].color : r < 0.7 ? T[2].color : misc[Math.floor(Math.random() * misc.length)];
+          // a home crowd: about 6 in 10 fans in home colors, 2 in 10 visitors
+          const r = Math.random(), col = r < 0.6 ? hc : r < 0.8 ? ac : misc[Math.floor(Math.random() * misc.length)];
           const bob = ((i + row + f) % 3 === 0) ? -1 : 0;
           x.fillStyle = col; x.fillRect(i * 4 + (row % 2) * 2, row * 6 + 2 + bob, 3, 3);
           x.fillStyle = "#e0b48a"; x.fillRect(i * 4 + (row % 2) * 2 + 1, row * 6 + 1 + bob, 1, 1);
@@ -49,7 +52,7 @@ const RENDER = (() => {
   }
 
   function stands(G, time) {
-    const ck = CFG.TEAMS[1].color + CFG.TEAMS[2].color; if (!crowd || crowd.key !== ck) { textures(); crowd.key = ck; }
+    const ck = CFG.TEAMS[1].id + CFG.TEAMS[2].id + G.home; if (!crowd || crowd.key !== ck) { crowdHome = G.home || 1; textures(); crowd.key = ck; }
     const fast = G.hype > 0 ? 8 : 1.5;
     const img = crowd[Math.floor(time * fast) % 2];
     const off = ((camX * PX * 0.5) % 128 + 128) % 128;
@@ -96,8 +99,12 @@ const RENDER = (() => {
     // midfield logo
     const mx = sx(50);
     if (mx > -60 && mx < VW + 60) {
+      const home = CFG.TEAMS[G.home || 1];
+      ctx.save(); ctx.globalAlpha = 0.55; ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(MASCOTS.icon(home.id), mx - 24, sy(FW / 2) - 30, 48, 48);
+      ctx.restore();
       ctx.font = "8px " + FONT; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillStyle = "rgba(255,255,255,.22)"; ctx.fillText("DADMO", mx, sy(FW / 2) - 5); ctx.fillText("BOWL", mx, sy(FW / 2) + 6);
+      ctx.fillStyle = "rgba(255,255,255,.35)"; ctx.fillText(home.short, mx, sy(FW / 2) + 26);
     }
     // lines
     ctx.fillStyle = "rgba(255,255,255,.75)";
@@ -196,6 +203,23 @@ const RENDER = (() => {
     ctx.drawImage(img, x - SPRITES.OX, y - SPRITES.OY);
     if (onFire) flames(x, y, time, p.seed, false);
   }
+  // After a touchdown the scoring team's mascot moonwalks along the sideline: facing one way, gliding the other.
+  function mascot(G, time) {
+    if (G.phase !== "dead" || !G.celebrate || G.deadT == null) return;
+    const team = G.celebrate, T = CFG.TEAMS[team], S = 2;
+    const k = 1 - Math.max(0, G.deadT) / 2.6;             // 0 → 1 across the celebration
+    const x = Math.round(VW + 40 - k * (VW + 80)), y = 240; // glides right to left...
+    const frame = Math.floor(time * 6) % 4;                 // ...while his feet "walk" forward (to the right)
+    const img = SPRITES.get(team, 0, "backpedal", frame, 1);
+    ctx.imageSmoothingEnabled = false;
+    ctx.fillStyle = "rgba(0,0,0,.3)"; ctx.fillRect(x - 12, y - 2, 24, 4);
+    ctx.drawImage(img, x - SPRITES.OX * S, y - SPRITES.OY * S, SPRITES.SW * S, SPRITES.SH * S);
+    // the big mascot head, bobbing to the beat
+    const bob = Math.floor(time * 6) % 2 * 2;
+    ctx.drawImage(MASCOTS.icon(T.id), x - 18, y - 76 - bob, 36, 36);
+    if (k > 0.1 && k < 0.9 && Math.floor(time * 3) % 2) text("♪", x + 22, y - 72, "#ffe14a", 8);
+  }
+  const sh0 = () => 0;
   function starIcon(x, y, time) {
     const pts = [[2, 0], [3, 0], [2, 1], [3, 1], [0, 2], [1, 2], [2, 2], [3, 2], [4, 2], [5, 2], [1, 3], [2, 3], [3, 3], [4, 3], [1, 4], [4, 4], [0, 5], [5, 5]];
     const glow = Math.floor(time * 3) % 2;
@@ -441,6 +465,7 @@ const RENDER = (() => {
     const list = G.players.slice().sort((a, b) => a.y - b.y);
     for (const p of list) player(G, p, time);
     effects(G); timing(G); popsDraw(G);
+    mascot(G, time);
     // target receiver ring for a human quarterback
     const pl = G.play, car = G.ball && G.ball.state === "held" ? G.ball.holder : null;
     if (pl && pl.type === "pass" && !pl.thrown && car && car.role === "QB" && G.human[G.poss] && G.receivers[G.target]) {
