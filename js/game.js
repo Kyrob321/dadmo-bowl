@@ -20,6 +20,13 @@ const GAME = (() => {
       repScores: [], ccScores: [] };
   }
   const ST = () => G.stats;
+  // Count a stat for the whole game and for one team (default: the team with the ball).
+  function bump(k, n, team) {
+    n = n == null ? 1 : n; team = team || G.poss;
+    G.stats[k] = (G.stats[k] || 0) + n;
+    const b = G.stats.by && G.stats.by[team]; if (b) b[k] = (b[k] || 0) + n;
+  }
+  const teamOf = slot => TEAMS.byId[RATINGS.SLOT_TEAM[slot]] || TEAMS.byId.krush;
 
   // ---------- helpers ----------
   function makePlayer(team, side, spec) {
@@ -81,20 +88,29 @@ const GAME = (() => {
   const cpuQ = rating => clamp(K.CPU_Q_MEAN + 0.8 * (rating - 70) / 30 + gauss() * K.CPU_Q_SD, -1, 1);
 
   // ---------- game flow ----------
-  function newGame(human) {
+  // Put two teams in the slots: colors and names for drawing, ratings and styles for play.
+  function setTeams(t1, t2) {
+    RATINGS.SLOT_TEAM[1] = t1; RATINGS.SLOT_TEAM[2] = t2;
+    // "trim" is used for on-screen text, so very dark trims swap to the main color; helmets keep the real trim.
+    const lum = h => { const n = parseInt(h.slice(1), 16); return (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255; };
+    for (const s of [1, 2]) { const t = teamOf(s); CFG.TEAMS[s] = { id: t.id, name: t.name, short: t.short, color: t.color, dark: t.dark, helmet: t.trim, trim: lum(t.trim) < 0.3 ? t.color : t.trim }; }
+  }
+
+  function newGame(human, teams) {
+    if (teams) setTeams(teams[1], teams[2]);
     Object.assign(G, {
       human: Object.assign({ 1: true, 2: false }, human || {}),
       score: { 1: 0, 2: 0 }, quarter: 1, clock: Q, clockRunning: false, ot: false,
       banner: null, events: [], mash: null, next: null, overT: 0, plays: 0,
       time: 0, fx: [], pops: [], shake: 0, celebrate: 0, hype: 0, rep: null,
-      stats: freshStats(), lastZ: { 1: -9, 2: -9 },
+      stats: Object.assign(freshStats(), { by: { 1: freshStats(), 2: freshStats() } }), lastZ: { 1: -9, 2: -9 },
     });
     setupKickoff(other(CFG.FIRST_RECEIVER));
     banner("KICKOFF!", CFG.TEAMS[CFG.FIRST_RECEIVER].name + " RECEIVE", 1.4);
   }
 
   function changePoss(team, los) {
-    if (team !== G.poss) ST().drives++;
+    if (team !== G.poss) bump("drives", 1, team);
     G.poss = team; G.los = clamp(los, 1, 99); G.down = 1; G.togo = Math.min(10, 100 - G.los);
   }
 
@@ -120,7 +136,7 @@ const GAME = (() => {
     const offT = G.poss, defT = other(offT);
     G.players = f.off.map(s => makePlayer(offT, "off", s)).concat(f.def.map(s => makePlayer(defT, "def", s)));
     G.players.forEach(p => { p.face = p.side === "def" ? -1 : 1; });
-    G.plans = PLAYS.makePlans(G.los, G.players.filter(p => p.side === "off"));
+    G.plans = PLAYS.makePlans(G.los, G.players.filter(p => p.side === "off"), teamOf(G.poss).style);
     G.ball = { state: "held", holder: qb(), x: G.los - 1.6, y: C, z: 1 };
     G.control = { [offT]: qb(), [defT]: G.players.find(p => p.side === "def" && p.role === "LB") };
     G.receivers = []; G.target = 0;
@@ -135,9 +151,9 @@ const GAME = (() => {
       G.ball.x = q.x; G.ball.y = q.y;
       return;
     }
-    G.phase = "live"; G.clockRunning = true; G.plays++; ST().plays++;
-    G.play = { hole: gauss(), type: call, t: 0, thrown: false, handed: false, crossed: false, cpuThrowAt: rnd(K.QB_HOLD_MIN, K.QB_HOLD_MAX), scramble: false, startLos: G.los };
-    if (call === "pass") ST().dropbacks++; else ST().runs++;
+    G.phase = "live"; G.clockRunning = true; G.plays++; bump("plays");
+    G.play = { hole: gauss(), type: call, t: 0, thrown: false, handed: false, crossed: false, cpuThrowAt: (h => rnd(h[0], h[1]))(teamOf(G.poss).style.hold || [K.QB_HOLD_MIN, K.QB_HOLD_MAX]), scramble: false, startLos: G.los };
+    if (call === "pass") bump("dropbacks"); else bump("runs");
     G.players.forEach(p => { p.route = null; p.ri = 0; });
     if (call === "run") {
       const rb = byId("RB"); rb.route = G.plans.run.rbPath.map(o => ({ x: o.x, y: o.y }));
@@ -160,7 +176,7 @@ const GAME = (() => {
   }
 
   function setupReturn(recvTeam, rx, kickTeam) {
-    G.poss = recvTeam; ST().drives++; G.loose = null;
+    G.poss = recvTeam; bump("drives", 1, recvTeam); G.loose = null;
     G.phase = "live"; G.clockRunning = true; G.mash = null; G.rep = null;
     G.play = { type: "return", t: 0, thrown: true, handed: true, crossed: true };
     G.players = [];
@@ -241,7 +257,7 @@ const GAME = (() => {
   function fgResult(kt, recv, yards, good) {
     event("fg", { team: kt, yards, good });
     if (good) {
-      G.score[kt] += 3; ST().points += 3; ST().fgs++; G.clockRunning = false;
+      G.score[kt] += 3; bump("points", 3, kt); bump("fgs", 1, kt); G.clockRunning = false;
       banner("IT'S GOOD!", yards + "-YARD FIELD GOAL", 2.2);
       return scored(kt, 2.2);
     }
@@ -258,7 +274,7 @@ const GAME = (() => {
       if (G.togo <= 1 && G.los > 40) return Math.random() < 0.6 ? "run" : "pass";
       if (!late) return "kick";
     }
-    let run = K.CPU_RUN;
+    let run = teamOf(G.poss).style.run != null ? teamOf(G.poss).style.run : K.CPU_RUN;
     if (G.togo >= 8) run -= 0.15; if (G.togo <= 3) run += 0.15;
     return Math.random() < run ? "run" : "pass";
   }
@@ -430,21 +446,38 @@ const GAME = (() => {
     let m = 99;
     for (const o of G.players) if (o.team !== r.team) m = Math.min(m, dist(o, r));
     const depth = r.x - G.los;
-    return m + (depth < K.QB_SHORT ? K.QB_SHORT_BONUS : 0); // quarterbacks take the open short throw first
+    const st = teamOf(r.team).style, sb = st.short; // how much this team's QB prefers the short throw
+    return m + (depth < K.QB_SHORT ? (sb != null ? sb : K.QB_SHORT_BONUS) : 0) + (depth >= 15 ? (st.deep || 0) : 0);
   }
 
   function cpuQB(q) {
     const pl = G.play;
     q.vx = q.vy = 0;
     const pressure = G.players.some(o => o.team !== q.team && o.down <= 0 && dist(o, q) < 2.8);
-    if (pl.scramble) { pl.crossed = q.x > G.los; return setVel(q, 1, (C - q.y) * 0.02, 1); }
+    if (pl.scramble) {
+      pl.crossed = q.x > G.los;
+      let near = null, nd = 99;
+      for (const o of G.players) { if (o.team === q.team || o.down > 0) continue; const d = dist(o, q); if (d < nd) { nd = d; near = o; } }
+      const away = near ? (q.y > near.y ? 1 : -1) : 0;
+      // first get outside the rush, then turn upfield
+      const out = pl.t - (pl.scrambleT || pl.t) < 0.35;
+      return setVel(q, out ? 0.35 : 1, out ? away : away * 0.4, 1);
+    }
     // Under pressure the quarterback needs a moment to react: sometimes he gets it off, sometimes he's sacked.
-    if (pressure && pl.pressureAt == null) pl.pressureAt = pl.t + Math.max(0.08, K.QB_REACT + gauss() * 0.15);
+    if (pressure && pl.pressureAt == null) {
+      pl.pressureAt = pl.t + Math.max(0.08, K.QB_REACT + gauss() * 0.15);
+      // Mobile quarterbacks feel the rush and take off right away instead of freezing.
+      const scr = teamOf(q.team).style.scramble || 0;
+      // ...but only if he has room to get out (no second rusher right on him).
+      const crowd = G.players.filter(o => o.team !== q.team && o.down <= 0 && dist(o, q) < 4.5).length;
+      if (scr > 0.4 && crowd <= 1 && Math.random() < scr * K.SCRAMBLE_EARLY) { pl.scramble = true; pl.scrambleT = pl.t; return; }
+    }
     const reacting = pl.pressureAt != null && pl.t < pl.pressureAt;
     if (!reacting && (pl.t > pl.cpuThrowAt || pl.pressureAt != null)) {
       const best = G.receivers.map(r => ({ r, s: openness(r) })).sort((a, b) => b.s - a.s)[0];
       if (best && (best.s > 2.2 || pl.t > 3.3 || pressure)) {
-        if (best.s < 1.2 && Math.random() < 0.35 && pressure) { pl.scramble = true; return; }
+        const scr = teamOf(q.team).style.scramble || 0.35;
+        if (best.s < 1.2 && Math.random() < scr && pressure) { pl.scramble = true; pl.scrambleT = pl.t; return; } // nobody open: take off
         throwBall(q, best.r);
       }
     }
@@ -560,13 +593,16 @@ const GAME = (() => {
     T = Math.hypot(tx - q.x, ty - q.y) / speed;
     tx = r.x + r.vx * T; ty = r.y + r.vy * T;
     // Accuracy: every quarterback's throws wander a little, more on long balls and for lower ratings.
-    const miss = K.ACC_MISS * (0.3 + T * 0.9) * (1.55 - q.r.acc / 100);
+    let miss = K.ACC_MISS * (0.3 + T * 0.9) * (1.55 - q.r.acc / 100);
+    // Throwing with a rusher in your face: the ball comes out less accurate.
+    if (G.players.some(o => o.team !== q.team && o.down <= 0 && dist(o, q) < 3)) miss *= K.PRESSURE_MISS;
     tx += gauss() * miss; ty += gauss() * miss;
     ty = clamp(ty, 0.6, W - 0.6);
     T = Math.max(0.25, T);
     G.ball = { state: "air", fx: q.x, fy: q.y, tx, ty, t: 0, T, h: 0.8 + T * 2.4, intended: r, x: q.x, y: q.y, z: 1,
       ideal: T - K.IDEAL_LEAD, wOff: windowFor(r.r.catch), offT: null, defT: null, defP: null };
-    G.play.thrown = true; ST().att++;
+    G.play.thrown = true; bump("att");
+    bump("tgtDepth", tx - G.los); if (tx - G.los >= 15) bump("deepAtt");
     let sep = 99; for (const o of G.players) if (o.team !== r.team) sep = Math.min(sep, dist(o, r));
     G.play.sepAtThrow = sep;
     anim(q, "throw", 0.42);
@@ -581,14 +617,14 @@ const GAME = (() => {
     const r = near(offT, p => p.role === "OL" || p.role === "QB");
     const d = near(defT);
     const rOk = r && r.d < 1.8, contested = d && d.d < K.CC_RADIUS;
-    const dropOut = () => { anim(r.p, "catch", 0.45); ST().drops++; incomplete("DROPPED!", "drop", r.p); };
+    const dropOut = () => { anim(r.p, "catch", 0.45); bump("drops"); incomplete("DROPPED!", "drop", r.p); };
     if (!rOk && !contested) return incomplete("INCOMPLETE", "miss");
     if (rOk && !contested) {
       if (Math.random() < K.DROP_BASE + K.DROP_SCALE * (1 - r.p.r.catch / 100)) return dropOut();
       return completeTo(r.p, null);
     }
     // ----- contested: a hidden rep, positive favors the receiver -----
-    ST().contested++; ST()["cc_" + d.p.role] = (ST()["cc_" + d.p.role] || 0) + 1; ST().ccT = (ST().ccT || 0) + b.T;
+    bump("contested"); ST()["cc_" + d.p.role] = (ST()["cc_" + d.p.role] || 0) + 1; ST().ccT = (ST().ccT || 0) + b.T;
     const defP = d.p, rec = rOk ? r.p : null;
     const humanDef = G.human[defT] && G.control[defT] === defP;
     const humanRec = rec && G.human[offT] && G.control[offT] === rec;
@@ -604,17 +640,17 @@ const GAME = (() => {
     if (s <= K.CC_INT) { // pick
       G.ball = { state: "held", holder: defP, x: defP.x, y: defP.y, z: 1 };
       G.control[defT] = defP; G.control[offT] = nearestTo(offT, defP);
-      anim(defP, "catch", 0.4); shake(0.2); ST().ints++;
+      anim(defP, "catch", 0.4); shake(0.2); bump("ints");
       banner("INTERCEPTED!", "", 1.4, CFG.TEAMS[defT].trim); event("int", { team: defT });
       return;
     }
     if (s <= 0.0 || !rec) { // swat (and a dead tie is knocked loose)
-      anim(defP, "catch", 0.35); ST().swats++;
+      anim(defP, "catch", 0.35); bump("swats");
       if (rec) anim(rec, "catch", 0.4); // the receiver reached for it...
       const swat = s <= -0.1 || !rec;
       return incomplete(swat ? "SWATTED!" : "KNOCKED LOOSE!", swat ? "swat" : "drop", swat ? defP : rec);
     }
-    ST().contestedCatches++;
+    bump("contestedCatches");
     if (s < K.CC_MOSS) { completeTo(rec, null); return tackle(rec, defP, "contested"); } // caught, but drilled right away
     defP.down = 1.0; anim(defP, "fall", 0.4); fx("dust", defP.x, defP.y);
     completeTo(rec, "MOSSED!");
@@ -623,8 +659,8 @@ const GAME = (() => {
   function completeTo(rec, shout) {
     G.ball = { state: "held", holder: rec, x: rec.x, y: rec.y, z: 1 };
     rec.route = null; G.control[G.poss] = rec; anim(rec, "catch", 0.35);
-    ST().comp++; ST().touches++; G.play.caughtAt = rec.x; ST().airYds += rec.x - G.play.startLos;
-    if (G.play.sepAtThrow != null) ST().sepSum += G.play.sepAtThrow;
+    bump("comp"); bump("touches"); G.play.caughtAt = rec.x; bump("airYds", rec.x - G.play.startLos);
+    if (G.play.sepAtThrow != null) bump("sepSum", G.play.sepAtThrow);
     if (shout) banner(shout, "", 1, "#7fd68f");
     event("catch", { team: G.poss });
   }
@@ -704,7 +740,7 @@ const GAME = (() => {
   function checkReps() {
     const car = carrier(); if (!car) return;
     const pl = G.play;
-    const pocket = car.role === "QB" && pl.type === "pass" && !pl.thrown && !pl.crossed;
+    const pocket = car.role === "QB" && pl.type === "pass" && !pl.thrown && !pl.crossed && !pl.scramble;
     if (pl.type === "run" && !pl.handed && car.role === "QB") {
       // a defender in the backfield before the handoff just tackles the quarterback
       for (const p of G.players) if (p.team !== car.team && p.down <= 0 && p.engaged <= 0 && dist(p, car) < 0.8) return tackle(car, p, "tfl");
@@ -712,7 +748,8 @@ const GAME = (() => {
     }
     for (const p of G.players) {
       if (p.team === car.team || p.down > 0 || p.engaged > 0) continue;
-      if (pocket) { if (dist(p, car) < 0.9) return tackle(car, p, "sack"); continue; }
+      // Pocket QB: an automatic sack on contact, unless he's a mobile QB, who gets a tackle rep to slip it.
+      if (pocket && !(teamOf(car.team).style.scramble > 0.4)) { if (dist(p, car) < 0.9) return tackle(car, p, "sack"); continue; }
       if (G.rep) continue;
       if (p.repCd > 0) continue;
       const d = dist(p, car);
@@ -779,7 +816,7 @@ const GAME = (() => {
     const green = (move && qo >= 0.5 ? K.GREEN : 0) - (qd >= 0.5 ? K.GREEN : 0);
     let s = K.TK_BIAS + K.TK_TIMING * (qo - qd) + green + K.TK_RATING * (rOff - def.r.tkl) / 30 + moveBonus(move, car, def) + help + gauss() * K.TK_SIGMA;
     s = clamp(Math.round(s * 10) / 10, -2, 2);
-    ST().tackleReps++; ST().repScores.push(s);
+    bump("tackleReps"); ST().repScores.push(s);
     if (humanDef) { ST().myReps = (ST().myReps || 0) + 1; if (s <= -0.2) ST().myTackles = (ST().myTackles || 0) + 1; }
     ST()["repsVs" + car.team] = (ST()["repsVs" + car.team] || 0) + 1;
     if (s >= 0.2) ST()["brokeBy" + car.team] = (ST()["brokeBy" + car.team] || 0) + 1;
@@ -787,13 +824,14 @@ const GAME = (() => {
     if (s <= -0.2) return tackle(car, def, "rep", s);
     if (s >= 0.2) return breakFree(car, def, s, move, rep.jdir);
     // -0.1, 0 or 0.1: a dead heat → mash battle (shown when a human is involved, simulated otherwise)
-    ST().mashes++;
+    bump("mashes");
     if (G.human[car.team] || G.human[def.team]) return startMash(car, def);
     return Math.random() < 0.5 + (car.r.bt - def.r.tkl) / 200 ? breakFree(car, def, 0.2, null, 0) : tackle(car, def, "rep", -0.2);
   }
 
   function breakFree(car, def, s, move, jdir) {
-    ST().brokenTackles++;
+    bump("brokenTackles");
+    if (car.role === "QB" && G.play && G.play.type === "pass" && !G.play.thrown) { G.play.scramble = true; G.play.scrambleT = G.play.t; }
     // The bigger the win, the less the hit slows the runner down.
     car.slowT = 0.6; car.slowMul = clamp(0.35 + 0.3 * s, 0.35, 0.97);
     def.down = 0.6 + 0.35 * s; anim(def, "fall", 0.4); fx("dust", def.x, def.y);
@@ -831,21 +869,25 @@ const GAME = (() => {
 
   // ---------- tackles ----------
   function tackle(car, by, kind, s) {
+    // NFL rule: a quarterback brought down behind the line on a pass play is a sack, scramble or not.
+    if (car.role === "QB" && G.play && G.play.type === "pass" && !G.play.thrown && car.x < G.los) kind = "sack";
     by.vx = by.vy = 0; car.vx = car.vy = 0;
     if (G.play && G.play.type === "run") { ST()["rt_" + by.role] = (ST()["rt_" + by.role] || 0) + 1; const g = car.x - G.play.startLos; ST()[g < 0 ? "rg_neg" : g < 3 ? "rg_0to3" : g < 6 ? "rg_3to6" : g < 10 ? "rg_6to10" : "rg_10plus"] = (ST()[g < 0 ? "rg_neg" : g < 3 ? "rg_0to3" : g < 6 ? "rg_3to6" : g < 10 ? "rg_6to10" : "rg_10plus"] || 0) + 1; }
     anim(car, "fall", 0.45); anim(by, "fall", 0.45);
     car.lying = by.lying = true;
     fx("dust", car.x, car.y); fx("dust", by.x, by.y);
     shake(kind === "sack" ? 0.35 : (s != null && s <= -1.5) ? 0.3 : 0.18);
-    if (kind === "sack") { ST().sacks++; banner("SACK!", "", 1.3, CFG.TEAMS[by.team].trim); event("sack", { team: by.team }); }
+    if (kind === "sack") { bump("sacks"); banner("SACK!", "", 1.3, CFG.TEAMS[by.team].trim); event("sack", { team: by.team }); }
     else if (s != null && s <= -1.5) pop("BIG HIT!", car.x, car.y, "#ef5a45");
     // Fumbles: rare, and likelier the bigger the defender's win.
     if (kind !== "sack") {
-      const pf = K.FUMBLE_BASE + (s != null ? K.FUMBLE_BIG * Math.max(0, -s - 1) : 0);
+      let pf = K.FUMBLE_BASE + (s != null ? K.FUMBLE_BIG * Math.max(0, -s - 1) : 0);
+      pf *= teamOf(by.team).flags.fumbleMul || 1;
+      if (teamOf(car.team).flags.noFumble) pf = 0;
       if (Math.random() < pf) {
-        ST().fumbles++;
+        bump("fumbles");
         const lost = Math.random() < CFG.NFL.fumbleLostShare / 100;
-        if (lost) ST().fumblesLost++;
+        if (lost) bump("fumblesLost");
         banner("FUMBLE!", lost ? "RECOVERED BY " + CFG.TEAMS[by.team].short : "OFFENSE RECOVERS", 1.8);
         // The ball pops out and bounces; whoever recovers dives on top of where it ends up.
         const vx = rnd(-3, 3), vy = rnd(-3, 3);
@@ -873,10 +915,10 @@ const GAME = (() => {
   function recordYards(x) {
     const pl = G.play; if (!pl || pl.type === "return") return;
     const gain = x - pl.startLos;
-    if (pl.type === "run" && pl.handed) { ST().rushYds += gain; ST().touches++; }
-    else if (pl.type === "run") ST().rushYds += gain; // tackled before the handoff
-    else if (pl.type === "pass" && pl.caughtAt != null) ST().passYds += gain;
-    else if (pl.type === "pass" && pl.crossed && !pl.thrown) { ST().runs++; ST().dropbacks--; ST().rushYds += gain; } // scramble counts as a run
+    if (pl.type === "run" && pl.handed) { bump("rushYds", gain); bump("touches"); }
+    else if (pl.type === "run") bump("rushYds", gain); // tackled before the handoff
+    else if (pl.type === "pass" && pl.caughtAt != null) bump("passYds", gain);
+    else if (pl.type === "pass" && (pl.crossed || pl.scramble) && !pl.thrown) { bump("runs"); bump("dropbacks", -1); bump("scrambles"); bump("rushYds", gain); } // scramble counts as a run
   }
 
   function endPlay(r) {
@@ -886,7 +928,7 @@ const GAME = (() => {
     if (r.type === "inc") { G.clockRunning = false; advanceDown(0); return dead(1.4, setupScrimmage); }
     const x = clamp(r.x, -9.9, 109.9);
     if (r.type === "oob") G.clockRunning = false;
-    if (r.carrierTeam === offT) recordYards(x);
+    if (r.carrierTeam === offT && !r.sack) recordYards(x);
     if (r.carrierTeam === offT) {
       if (pl.type === "return") { G.los = clamp(x <= 0 ? 20 : x, 1, 99); G.down = 1; G.togo = Math.min(10, 100 - G.los); }
       else if (x <= 0) return safety(offT);
@@ -919,7 +961,7 @@ const GAME = (() => {
   function touchdown(team) {
     if (G.phase !== "live") return;
     G.mash = null; G.rep = null; G.score[team] += 7; G.clockRunning = false;
-    ST().points += 7; ST().tds++;
+    bump("points", 7, team); bump("tds", 1, team);
     if (team === G.poss) recordYards(100);
     event("td", { team, pickSix: team !== G.poss });
     G.celebrate = team; G.hype = 3; shake(0.3);
@@ -929,7 +971,7 @@ const GAME = (() => {
 
   function safety(offT) {
     const defT = other(offT);
-    G.score[defT] += 2; ST().points += 2; G.clockRunning = false;
+    G.score[defT] += 2; bump("points", 2, defT); G.clockRunning = false;
     banner("SAFETY!", "+2 " + CFG.TEAMS[defT].short, 2);
     event("safety", { team: defT });
     if (G.ot) return dead(2, () => gameOver());
@@ -1027,5 +1069,18 @@ const GAME = (() => {
     return t;
   }
 
-  return { state: G, newGame, update, sim, fgNeed, windowFor };
+  // Developer mode helpers: drop straight into a situation.
+  const dev = {
+    situation(o) {
+      if (G.phase === "idle") return;
+      if (o.quarter) G.quarter = o.quarter;
+      if (o.clock != null) G.clock = o.clock;
+      if (o.poss) G.poss = o.poss;
+      if (o.los != null) G.los = o.los;
+      G.down = o.down || 1; G.togo = Math.min(o.togo || 10, 100 - G.los);
+      G.clockRunning = false; G.mash = null; G.rep = null; G.loose = null;
+      setupScrimmage();
+    },
+  };
+  return { state: G, newGame, update, sim, fgNeed, windowFor, setTeams, dev };
 })();

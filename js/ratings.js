@@ -17,17 +17,19 @@ const RATINGS = (() => {
     CV: { spd: 82, tkl: 72, cov: 40, blk: 50 },
   };
   const DEFAULTS = { spd: 60, bt: 45, juke: 40, stiff: 40, truck: 45, route: 30, catch: 45, pow: 50, acc: 50, tkl: 50, cov: 40, blk: 50 };
-  const TEAM_ADJ = { 1: {}, 2: {} }; // e.g. { tkl: +4 } for a hard-hitting team, later
+  // Which team plays in each slot (1 = left player, 2 = right player); set at the start of a game.
+  const SLOT_TEAM = { 1: "bolts", 2: "krush" };
 
   function gauss() { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); }
 
   function make(role, team) {
-    const b = Object.assign({}, DEFAULTS, BASE[role] || BASE.OL), adj = TEAM_ADJ[team] || {}, r = {};
-    for (const k in b) r[k] = Math.max(25, Math.min(99, Math.round(b[k] + gauss() * 4 + (adj[k] || 0))));
+    const b = Object.assign({}, DEFAULTS, BASE[role] || BASE.OL), r = {};
+    const adj = (typeof TEAMS !== "undefined") ? TEAMS.adjFor(SLOT_TEAM[team], role) : {};
+    for (const k in b) r[k] = Math.max(25, Math.min(99, Math.round(b[k] + gauss() * 4 + (adj[k] || 0) + (adj["*"] || 0))));
     return r;
   }
   // Speed rating to yards per second (88 → about 7.8 yd/s).
   const speed = s => 3.8 + s * 0.045;
 
-  return { make, speed, gauss, BASE };
+  return { make, speed, gauss, BASE, SLOT_TEAM };
 })();

@@ -28,7 +28,7 @@ const CFG = {
     // Timing windows (seconds of action time), widened by rating
     WIN_BASE: 0.06, WIN_RATING: 0.12, IDEAL_LEAD: 0.12,
     // Throws
-    ACC_MISS: 3.25, POWER_SPEED: 0.065,
+    ACC_MISS: 2.7, PRESSURE_MISS: 1.3, SCRAMBLE_EARLY: 0, POWER_SPEED: 0.065,
     // Computer play calling and timing quality
     CPU_RUN: 0.5, QB_REACT: 0.47, DEF_READ: 0.3, DEF_BREAK: 6, DEF_TRAIL: 0.92, COV_LAG: 0.3, COV_CUSHION: 1.0, LB_EXTRA_LAG: 0.15, LB_CUSHION: 1.6, RUN_BLOCK: 3.8, LB_READ: 1.15, RUN_HOLE: 1.3, QB_SHORT: 12, QB_SHORT_BONUS: 2.0, QB_HOLD_MIN: 1.0, QB_HOLD_MAX: 2.3, CPU_MOVE: 0.55, CPU_Q_MEAN: -0.15, CPU_Q_SD: 0.45,
     // Mash battle: computer presses per second

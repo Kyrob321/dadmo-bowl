@@ -249,8 +249,9 @@ const RENDER = (() => {
   function hud(G) {
     const T = CFG.TEAMS;
     ctx.fillStyle = "#000"; ctx.fillRect(0, 0, VW, 22);
-    text(T[1].short, 8, 7, T[1].trim); text(String(G.score[1]), 64, 7, "#fff");
-    text(String(G.score[2]), VW - 72, 7, "#fff", 8, "right"); text(T[2].short, VW - 8, 7, T[2].trim, 8, "right");
+    // score sits right after each team name, however long the name is (8px per letter)
+    text(T[1].short, 8, 7, T[1].trim); text(String(G.score[1]), 8 + T[1].short.length * 8 + 10, 7, "#fff");
+    text(String(G.score[2]), VW - 8 - T[2].short.length * 8 - 10, 7, "#fff", 8, "right"); text(T[2].short, VW - 8, 7, T[2].trim, 8, "right");
     ctx.fillStyle = T[1].color; ctx.fillRect(0, 20, VW / 2, 2); ctx.fillStyle = T[2].color; ctx.fillRect(VW / 2, 20, VW / 2, 2);
     const clock = G.ot ? "OT" : "Q" + G.quarter + " " + Math.floor(G.clock / 60) + ":" + String(Math.floor(G.clock % 60)).padStart(2, "0");
     text(clock, VW / 2, 2, "#ffb627", 8, "center");
@@ -407,6 +408,7 @@ const RENDER = (() => {
     for (const t of [1, 2]) if (G.human[t] && G.phase !== "kick" && G.phase !== "over") marker(G, G.control[t], t, time);
     ctx.restore();
     hud(G); kickMeter(G); mashMeter(G); bannerDraw(G); prompts(G);
+    if (window.DADMO_DEV) { ctx.fillStyle = "#ffb627"; ctx.fillRect(VW - 34, VH - 26, 30, 10); text("DEV", VW - 31, VH - 25, "#000", 8); }
   }
 
   // Pause screen: dims the field and shows a small menu.

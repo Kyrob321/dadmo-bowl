@@ -37,7 +37,8 @@ const PLAYS = (() => {
     return steps.map(([dx, dy]) => ({ x: start.x + dx, y: Math.max(1.2, Math.min(W - 1.2, start.y + dy * inward)) }));
   }
 
-  function makePlans(los, offense) {
+  function makePlans(los, offense, style) {
+    style = style || {};
     const at = id => offense.find(p => p.id === id || p.role === id);
     // Run: pick a hole, then go.
     const holes = [C - 2.2, C + 2.2, C - 8, C + 8];
@@ -54,8 +55,11 @@ const PLAYS = (() => {
     };
     // Pass: every eligible receiver gets a route; the running back either stays in to block or runs to the flat.
     const routes = {};
-    const wr1 = pick(Object.keys(WR_ROUTES));
-    let wr2 = pick(Object.keys(WR_ROUTES)); if (wr2 === wr1) wr2 = pick(Object.keys(WR_ROUTES));
+    // Air Raid style teams call more deep routes.
+    const DEEP = ["GO", "POST", "CORNER"];
+    const wrPick = () => Math.random() < (style.deepRoutes || 0) ? pick(DEEP) : pick(Object.keys(WR_ROUTES));
+    const wr1 = wrPick();
+    let wr2 = wrPick(); if (wr2 === wr1) wr2 = wrPick();
     routes.WR1 = { name: wr1, pts: route(at("WR1"), WR_ROUTES[wr1]) };
     routes.WR2 = { name: wr2, pts: route(at("WR2"), WR_ROUTES[wr2]) };
     const te = pick(Object.keys(TE_ROUTES));
