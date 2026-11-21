@@ -105,7 +105,7 @@
   const UNLOCK = { id: null, t: 0 };
   const DEV_ITEMS = ["DEV: 4TH & 1 AT OPP 30", "DEV: 2-MIN DRILL, DOWN 4", "DEV: GOAL LINE, 1ST & GOAL", "DEV: RED ZONE DEFENSE"];
   // Pause menu: either player can pause (PAUSE on the phone, P / Esc / Enter on the keyboard).
-  const BASE_ITEMS = ["RESUME", "RESTART GAME", "QUIT TO TITLE", "WEATHER: ON", "BACK UP PROGRESS", "RESTORE PROGRESS", "RESET PROGRESS"];
+  const BASE_ITEMS = ["RESUME", "NEW GAME", "QUIT TO TITLE", "WEATHER: ON", "BACK UP PROGRESS", "RESTORE PROGRESS", "RESET PROGRESS"];
   const pauseItems = () => BASE_ITEMS.map(i => i.startsWith("WEATHER") ? "WEATHER: " + (WEATHER.enabled() ? "ON" : "OFF") : i === "RESET PROGRESS" && pause.armReset ? "RESET? PICK AGAIN TO ERASE" : i).concat(dev ? DEV_ITEMS : []);
   let PAUSE_ITEMS = BASE_ITEMS;
   const pause = { on: false, sel: 0, by: 1, lastHuman: null, msg: "", armReset: false };
@@ -153,7 +153,7 @@
         else if (pick === "DEV: 2-MIN DRILL, DOWN 4") { GAME.state.score[1] = GAME.state.score[2] - 4; D.situation({ quarter: 4, clock: 120, los: 25, poss: 1 }); }
         else if (pick === "DEV: GOAL LINE, 1ST & GOAL") D.situation({ los: 97, poss: 1, togo: 3 });
         else if (pick === "DEV: RED ZONE DEFENSE") D.situation({ los: 80, poss: 2 });
-        if (pick === "RESTART GAME") { PROGRESS.onQuit(GAME.state); start(Object.assign({}, pause.lastHuman, { 2: GAME.state.human[2] })); }
+        if (pick === "NEW GAME") { PROGRESS.onQuit(GAME.state); openSelect(Object.assign({}, pause.lastHuman, { 2: GAME.state.human[2] || INPUT.active(2) })); } // every new game starts with team select
         else if (pick === "QUIT TO TITLE") toTitle();
         return;
       }
@@ -231,7 +231,7 @@
     if (G.phase === "over" && G.overT > 2.5) {
       if (demo) { if (G.overT > 6) start({ 1: false, 2: false }); }
       else if (INPUT.pressed(1, "z") || INPUT.pressed(2, "z")) {
-        if (UNLOCK.id) { mode = "unlock"; UNLOCK.t = 0; SFX.fanfare(); } else openSelect(pause.lastHuman);
+        if (UNLOCK.id) { mode = "unlock"; UNLOCK.t = 0; SFX.fanfare(); } else openSelect(Object.assign({}, pause.lastHuman, { 2: GAME.state.human[2] || INPUT.active(2) }));
       }
     }
   }
