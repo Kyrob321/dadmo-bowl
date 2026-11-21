@@ -25,6 +25,8 @@ const INPUT = (() => {
     for (const s of [1, 2]) {
       const pad = (window.PADS && window.PADS.inputs[s]) || {};
       for (const k of KEYS) cur[s][k] = !!(kb[s][k] || pad[k] || virt[s][k]);
+      const ax = pad.ax || virt[s].ax || 0, ay = pad.ay || virt[s].ay || 0;
+      cur[s].ax = ax; cur[s].ay = ay;
     }
   }
 
@@ -34,6 +36,9 @@ const INPUT = (() => {
     pressed: (s, k) => !!cur[s][k] && !prev[s][k],
     anyPressed: s => KEYS.some(k => cur[s][k] && !prev[s][k]),
     dir(s) {
+      // Phone joystick: analog direction, and a light push means a slower step.
+      const ax = cur[s].ax || 0, ay = cur[s].ay || 0, m = Math.hypot(ax, ay);
+      if (m > 0.15) { const k = Math.min(1, m) / m; return { dx: ax * k, dy: ay * k, any: true }; }
       const dx = (cur[s].right ? 1 : 0) - (cur[s].left ? 1 : 0);
       const dy = (cur[s].down ? 1 : 0) - (cur[s].up ? 1 : 0);
       const l = Math.hypot(dx, dy) || 1;

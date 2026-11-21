@@ -52,6 +52,7 @@
             if (k === "x" || k === "z") { el.classList.add("flash"); setTimeout(() => el.classList.remove("flash"), 250); }
           }
         }
+        showStick(!!msg.stick);
         document.querySelector('.b[data-k="x"]').classList.toggle("off", !msg.x);
         document.querySelector('.b[data-k="z"]').classList.toggle("off", !msg.z);
       } else if (msg.t === "pong") {
@@ -63,7 +64,36 @@
     conn.on("close", () => { clearInterval(pingTimer); if (left) return; setStatus("DROPPED · RETRYING", "bad"); retryTimer = setTimeout(connect, 1500); });
   }
 
-  function sendState() { send({ t: "in", k: Object.assign({}, state) }); }
+  function sendState() { send({ t: "in", k: Object.assign({}, state, { ax: stick.ax, ay: stick.ay }) }); }
+
+  // --- Joystick (shown on defense): an analog stick; how far you push = how fast you go.
+  const stick = { on: false, id: null, ax: 0, ay: 0, lastSent: 0 };
+  function showStick(on) {
+    if (stick.on === on) return;
+    stick.on = on; $("stick").hidden = !on; $("dpad").hidden = on;
+    stick.id = null; stick.ax = stick.ay = 0; $("knob").style.transform = ""; $("stick").classList.remove("on");
+    sendState();
+  }
+  function stickMove(x, y) {
+    const r = $("stick").getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2, max = r.width * 0.36;
+    let dx = x - cx, dy = y - cy; const d = Math.hypot(dx, dy);
+    if (d > max) { dx *= max / d; dy *= max / d; }
+    let ax = dx / max, ay = dy / max;
+    if (Math.hypot(ax, ay) < 0.15) ax = ay = 0;          // small dead zone in the middle
+    stick.ax = Math.round(ax * 100) / 100; stick.ay = Math.round(ay * 100) / 100;
+    $("knob").style.transform = "translate(" + dx + "px," + dy + "px)";
+    $("stick").classList.toggle("on", !!(stick.ax || stick.ay));
+    // Also set the plain directions (menus use them), then send at most ~40 times a second.
+    state.up = stick.ay < -0.5; state.down = stick.ay > 0.5; state.left = stick.ax < -0.5; state.right = stick.ax > 0.5;
+    // Send at most ~40 times a second, but always deliver the latest position (trailing send).
+    const now = performance.now();
+    if (now - stick.lastSent > 25) { stick.lastSent = now; clearTimeout(stick.pending); sendState(); }
+    else { clearTimeout(stick.pending); stick.pending = setTimeout(() => { stick.lastSent = performance.now(); sendState(); }, 26); }
+  }
+  function stickRelease() {
+    stick.id = null; stick.ax = stick.ay = 0; state.up = state.down = state.left = state.right = false;
+    $("knob").style.transform = ""; $("stick").classList.remove("on"); sendState();
+  }
 
   // --- Touch handling: every finger is tracked, so you can hold a direction and press a button.
   const touchKey = new Map(); // touch id -> key
@@ -76,6 +106,7 @@
     const held = new Set(touchKey.values());
     let changed = false;
     NET.KEYS.forEach(k => {
+      if (stick.on && stick.id !== null && ["up", "down", "left", "right"].includes(k)) return; // the stick owns directions
       const on = held.has(k);
       if (state[k] !== on) { state[k] = on; changed = true; }
     });
@@ -102,6 +133,10 @@
     wake();
     if (e.type === "touchstart") for (const t of e.changedTouches) { const el = document.elementFromPoint(t.clientX, t.clientY); if (el && el.closest("#leaveBtn")) { leave(); return; } }
     for (const t of e.changedTouches) {
+      if (stick.on) {
+        if (e.type === "touchstart" && stick.id === null) { const el = document.elementFromPoint(t.clientX, t.clientY); if (el && el.closest("#stick")) { stick.id = t.identifier; stickMove(t.clientX, t.clientY); continue; } }
+        if (t.identifier === stick.id) { if (e.type === "touchend" || e.type === "touchcancel") stickRelease(); else stickMove(t.clientX, t.clientY); continue; }
+      }
       if (e.type === "touchend" || e.type === "touchcancel") touchKey.delete(t.identifier);
       else {
         const k = keyAt(t.clientX, t.clientY);
@@ -115,8 +150,11 @@
 
   // Mouse support, for testing on a computer.
   let mouseDown = false;
-  pad.addEventListener("mousedown", e => { if (e.target.closest("#leaveBtn")) { leave(); return; } mouseDown = true; const k = keyAt(e.clientX, e.clientY); if (k) touchKey.set("m", k); refresh(); });
-  addEventListener("mouseup", () => { if (!mouseDown) return; mouseDown = false; touchKey.delete("m"); refresh(); });
+  pad.addEventListener("mousedown", e => { if (e.target.closest("#leaveBtn")) { leave(); return; }
+    if (stick.on && e.target.closest("#stick")) { stick.id = "m"; stickMove(e.clientX, e.clientY); return; }
+    mouseDown = true; const k = keyAt(e.clientX, e.clientY); if (k) touchKey.set("m", k); refresh(); });
+  addEventListener("mousemove", e => { if (stick.id === "m") stickMove(e.clientX, e.clientY); });
+  addEventListener("mouseup", () => { if (stick.id === "m") { stickRelease(); return; } if (!mouseDown) return; mouseDown = false; touchKey.delete("m"); refresh(); });
 
   // Keep the phone screen awake while playing (iOS 18.4+ in home-screen mode).
   async function wake() {

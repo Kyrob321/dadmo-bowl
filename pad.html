@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/pad.css?v=1795249481">
+<link rel="stylesheet" href="css/pad.css?v=1795249646">
 </head>
 <body>
 <div class="rotate" id="rotate">TURN YOUR PHONE SIDEWAYS</div>
@@ -23,12 +23,15 @@
     <span id="status">CONNECTING</span>
   </header>
 
+  <div class="left-ctrl">
+  <div class="stick" id="stick" hidden aria-label="Joystick"><div class="stick-ring"></div><div class="knob" id="knob"></div><small class="stick-label">MOVE</small></div>
   <div class="dpad" id="dpad" aria-label="Direction pad">
     <div class="d up" data-k="up">▲<small id="lup"></small></div>
     <div class="d left" data-k="left">◀<small id="lleft"></small></div>
     <div class="d mid"></div>
     <div class="d right" data-k="right">▶<small id="lright"></small></div>
     <div class="d down" data-k="down">▼<small id="ldown"></small></div>
+  </div>
   </div>
 
   <div class="logo-mid">DADMO<br>BOWL</div>
@@ -46,7 +49,7 @@
 </div>
 
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-<script src="js/net.js?v=1795249481"></script>
-<script src="js/pad.js?v=1795249481"></script>
+<script src="js/net.js?v=1795249646"></script>
+<script src="js/pad.js?v=1795249646"></script>
 </body>
 </html>

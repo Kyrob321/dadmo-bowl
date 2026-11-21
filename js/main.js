@@ -45,7 +45,7 @@
     switch (G.phase) {
       case "presnap":
         if (offense) return Object.assign(L, { x: "RUN", z: "PASS", up: G.down === 4 ? (G.los >= 62 ? "FG" : "PUNT") : "" });
-        return Object.assign(L, { x: "SWITCH", z: "TACKLE" }, move);
+        return Object.assign(L, { x: "SWITCH", z: "TACKLE", stick: true }, move);
       case "dead": case "flight": return null; // keep whatever the phone shows between plays
       case "kick": return G.kick.team === t ? Object.assign(L, { x: "KICK", z: "KICK" }) : L;
       case "over": return G.overT > 2.5 ? Object.assign(L, { z: "NEW GAME" }) : L;
@@ -58,9 +58,9 @@
         }
         if (G.ball.state === "air") {
           if (G.ball.intended && G.ball.intended.team === t) return Object.assign(L, { z: "CATCH" });
-          return Object.assign(L, { x: "SWITCH", z: "JUMP" }, move);
+          return Object.assign(L, { x: "SWITCH", z: "JUMP", stick: true }, move);
         }
-        return Object.assign(L, { x: "SWITCH", z: "TACKLE" }, move);
+        return Object.assign(L, { x: "SWITCH", z: "TACKLE", stick: true }, move);
       }
     }
     return L;

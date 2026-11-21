@@ -44,6 +44,13 @@ body {
 .b-label.flash { color: #000; background: var(--amber); padding: 2px 4px; }
 .b.off { filter: grayscale(.7) brightness(.8); }
 
+.left-ctrl { justify-self: center; display: flex; align-items: center; justify-content: center; }
+.stick { position: relative; width: min(48vh, 39vw); height: min(48vh, 39vw); border-radius: 50%; background: radial-gradient(circle at 50% 45%, #3a3a3a, #202020 70%); box-shadow: inset 0 0 0 4px #151515, 0 3px 0 #8f8a7f; touch-action: none; }
+.stick[hidden], .dpad[hidden] { display: none !important; }
+.stick-ring { position: absolute; inset: 18%; border-radius: 50%; border: 2px dashed rgba(255,182,39,.35); }
+.knob { position: absolute; left: 50%; top: 50%; width: 42%; height: 42%; margin: -21% 0 0 -21%; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #555, #111 75%); box-shadow: 0 4px 0 #000, inset 0 0 0 3px #2c2c2c; transform: translate(0, 0); pointer-events: none; }
+.stick.on .knob { background: radial-gradient(circle at 40% 35%, #6b5a2a, #1a1306 75%); }
+.stick-label { position: absolute; bottom: -16px; left: 0; right: 0; text-align: center; font: 8px var(--font); color: #333; pointer-events: none; }
 .logo-mid { text-align: center; font-size: 11px; line-height: 1.8; color: var(--red); background: #1b1b1b; padding: 10px 12px; border-radius: 4px; }
 
 .buttons { justify-self: center; display: flex; gap: min(5vw, 40px); align-items: flex-end; transform: rotate(-12deg); }
