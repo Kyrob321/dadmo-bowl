@@ -173,10 +173,12 @@ const GAME = (() => {
     G.control = { [recvTeam]: kr, [kickTeam]: nearestTo(kickTeam, kr) };
   }
 
-  function nearestTo(team, pt, exclude) {
+  // skipLine: never hand a human control of a defensive lineman (they're stuck in blocks).
+  function nearestTo(team, pt, exclude, skipLine) {
     let best = null, bd = 1e9;
     for (const p of G.players) {
       if (p.team !== team || p === exclude || p.down > 0) continue;
+      if (skipLine && p.role === "DL") continue;
       const d = dist(p, pt); if (d < bd) { bd = d; best = p; }
     }
     return best;
@@ -274,7 +276,7 @@ const GAME = (() => {
     } else if (G.presnapT > G.cpuSnapAt) call = cpuCall();
     if (G.human[defT]) {
       if (INPUT.pressed(defT, "x")) {
-        const defs = teamPlayers(defT).sort((a, c) => dist(a, G.ball) - dist(c, G.ball));
+        const defs = teamPlayers(defT).filter(p => p.role !== "DL").sort((a, c) => dist(a, G.ball) - dist(c, G.ball));
         const i = defs.indexOf(G.control[defT]);
         G.control[defT] = defs[(i + 1) % defs.length];
       }
@@ -328,10 +330,10 @@ const GAME = (() => {
       return;
     }
     // Tackling side: move with the D-pad, X switches, Z is the timed tackle (or a timed jump at a ball in the air).
-    if (!p || p.team !== team) p = G.control[team] = nearestTo(team, b);
+    if (!p || p.team !== team) p = G.control[team] = nearestTo(team, b, null, true);
     if (INPUT.pressed(team, "x")) {
       const target = car || (b.state === "air" ? { x: b.tx, y: b.ty } : b);
-      const n = nearestTo(team, target, p); if (n) p = G.control[team] = n;
+      const n = nearestTo(team, target, p, true); if (n) p = G.control[team] = n;
     }
     if (!p || p.down > 0) return;
     if (INPUT.pressed(team, "z")) {
