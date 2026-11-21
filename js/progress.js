@@ -13,12 +13,14 @@ const PROGRESS = (() => {
     { id: "krakens", goal: "5 TAKEAWAYS (ALL GAMES)", prog: s => [Math.min(s.takeaways, 5), 5], done: s => s.takeaways >= 5 },
     { id: "twisters", goal: "WIN 3 GAMES (ALL GAMES)", prog: s => [Math.min(s.wins, 3), 3], done: s => s.wins >= 3 },
     { id: "vipers", goal: "THROW A 40+ YARD PASS AND WIN THE SAME GAME", prog: s => [s.bestLongWin ? 1 : 0, 1], done: (s, g) => g.long40Win },
-    { id: "legends", goal: "UNLOCK ALL 11 TEAMS, WIN 8 GAMES, THEN BEAT THE COMPUTER BY 14+",
+    { id: "legends", goal: "UNLOCK ALL 11 TEAMS (ONE IS A SECRET), WIN 8 GAMES, THEN BEAT THE COMPUTER BY 14+",
       prog: (s, u) => [Math.min(u.length, 11) + Math.min(s.wins, 8), 19],
       done: (s, g, u) => u.filter(id => id !== "legends").length >= 11 && s.wins >= 8 && g.cpuMargin >= 14 },
   ];
   const HINT = { lawnchairs: "WHEN DO PRESENTS GET OPENED?" };
   let dev = false, data = load(KEY);
+  // If the main save is ever unreadable, fall back to the copy made after the last finished game.
+  try { if (localStorage.getItem(KEY) && !JSON.parse(localStorage.getItem(KEY)).unlocked) data = load(KEY + "-backup"); } catch (e) { data = load(KEY + "-backup"); }
 
   function fresh() { return { v: 1, unlocked: START.slice(), games: 0, wins: 0, takeaways: 0, bestTds: 0, bestLongWin: false, live: null, log: [] }; }
   function load(key) {
@@ -38,7 +40,7 @@ const PROGRESS = (() => {
     if (isUnlocked(id)) return { id, open: true };
     if (HINT[id]) return { id, open: false, goal: HINT[id], next: false };
     const next = d && d.id === id;
-    return { id, open: false, next, goal: next ? rung.goal : "UNLOCK THE TEAMS BEFORE IT FIRST",
+    return { id, open: false, next, goal: next ? rung.goal : "EARN THE EARLIER TEAMS FIRST",
       prog: next ? rung.prog(data, data.unlocked) : null };
   }
   const openTeams = () => TEAMS.list.filter(t => isUnlocked(t.id)).map(t => t.id);
@@ -86,6 +88,7 @@ const PROGRESS = (() => {
     data.log.push({ at: Date.now(), s1: G.score[1], s2: G.score[2], t1: CFG.TEAMS[1].id, t2: CFG.TEAMS[2].id, got });
     if (data.log.length > 50) data.log.shift();
     save();
+    try { localStorage.setItem((dev ? DEV_KEY : KEY) + "-backup", JSON.stringify(data)); } catch (e) {}
     return got;
   }
 
@@ -101,9 +104,12 @@ const PROGRESS = (() => {
   }
 
   // ----- reset and backup -----
-  function reset() { data = fresh(); save(); }
+  function reset() { try { localStorage.setItem((dev ? DEV_KEY : KEY) + "-before-reset", JSON.stringify(data)); } catch (e) {} data = fresh(); save(); }
   function code() { return "DADMO-" + btoa(JSON.stringify({ u: data.unlocked, g: data.games, w: data.wins, t: data.takeaways, b: data.bestTds, l: data.bestLongWin })); }
   function restore(str) {
+    if (String(str).trim().toUpperCase() === "UNDO") {
+      try { const d = JSON.parse(localStorage.getItem((dev ? DEV_KEY : KEY) + "-before-reset")); if (!d) return false; data = Object.assign(fresh(), d); save(); return true; } catch (e) { return false; }
+    }
     try {
       const o = JSON.parse(atob(String(str).trim().replace(/^DADMO-/, "")));
       if (!Array.isArray(o.u)) return false;

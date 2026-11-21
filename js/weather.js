@@ -23,7 +23,7 @@ const WEATHER = (() => {
   let on = true, kind = "clear", forced = null;
   try { on = localStorage.getItem("dadmo-weather") !== "off"; } catch (e) {}
 
-  function setFor(homeTeamId) { kind = forced || (TEAMS.byId[homeTeamId] || {}).home || "clear"; if (!KINDS[kind]) kind = "clear"; }
+  function setFor(homeTeamId, override) { kind = forced || override || (TEAMS.byId[homeTeamId] || {}).home || "clear"; if (!KINDS[kind]) kind = "clear"; }
   const fx = () => (on ? KINDS[kind] : KINDS.clear);
   // A single effect value; late-game ones only count from the 4th quarter on.
   function get(key, quarter) {

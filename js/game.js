@@ -111,7 +111,7 @@ const GAME = (() => {
     // One team is at home; the game gets that stadium's weather.
     G.windDir = Math.random() < 0.5 ? -1 : 1;
     G.home = (teams && teams.home) || (Math.random() < 0.5 ? 1 : 2);
-    WEATHER.setFor(CFG.TEAMS[G.home].id);
+    WEATHER.setFor(CFG.TEAMS[G.home].id, teams && teams.weather);
     setupKickoff(other(CFG.FIRST_RECEIVER));
     banner("KICKOFF!", CFG.TEAMS[CFG.FIRST_RECEIVER].name + " RECEIVE", 1.4);
   }

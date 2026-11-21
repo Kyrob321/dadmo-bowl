@@ -79,7 +79,7 @@ const SCREENS = (() => {
         else if (S.taken && S.taken[s] === id) text("TAKEN · PICK ANOTHER", cx, 203, "#ef5a45", 8, "center");
         else text("Z: LOCK IN", cx, 203, "#ffb627", 8, "center");
       } else {
-        text("LOCKED", cx, 136, "#ef5a45", 10, "center");
+        text("LOCKED", cx, 136, (S.t - (P.flash || -9)) < 0.6 && Math.floor(S.t * 10) % 2 ? "#ffffff" : "#ef5a45", 10, "center");
         wrap(cd.goal, cx, 156, 26).forEach((ln, i) => text(ln, cx, 156 + i * 12, "#f3efe4", 8, "center"));
         if (cd.prog) progressBar(x0 + 24, 206, w - 48, cd.prog);
       }

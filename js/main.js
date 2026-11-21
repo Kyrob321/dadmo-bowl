@@ -38,14 +38,15 @@
 
   // ----- team select (secret on phones) and the VERSUS slam -----
   const SEL = { slot: { 1: {}, 2: {} }, list: [], t: 0, taken: {} };
-  function openSelect(human) {
+  function openSelect(human, highlight) {
     document.body.classList.add("playing");
     pause.lastHuman = Object.assign({}, human);
     SEL.list = TEAMS.list.map(t => t.id); SEL.t = 0; SEL.taken = {};
     for (const s of [1, 2]) {
       const prevId = SEL.slot[s] && SEL.slot[s].lockedId;
       const start = prevId ? SEL.list.indexOf(prevId) : SEL.list.indexOf(s === 1 ? "bolts" : "krush");
-      SEL.slot[s] = { human: !!human[s], idx: Math.max(0, start), locked: false, lockedId: null, phone: false };
+      SEL.slot[s] = { human: !!human[s], idx: Math.max(0, start), locked: false, lockedId: null, phone: false, flash: 0 };
+      if (highlight && s === 1) SEL.slot[s].idx = SEL.list.indexOf(highlight); // the new team, ready to play
     }
     mode = "select";
   }
@@ -64,7 +65,7 @@
         if (INPUT.pressed(s, "left") || INPUT.pressed(s, "up")) { P.idx = (P.idx + n - 1) % n; SFX.blip(); SEL.taken[s] = null; }
         if (INPUT.pressed(s, "z")) {
           const id = SEL.list[P.idx], o = SEL.slot[s === 1 ? 2 : 1];
-          if (!PROGRESS.isUnlocked(id)) { /* locked team: nothing happens */ }
+          if (!PROGRESS.isUnlocked(id)) { SFX.buzz(); P.flash = SEL.t; }
           else if (o.locked && o.lockedId === id) SEL.taken[s] = id;
           else { P.locked = true; P.lockedId = id; SFX.lock(); }
         }
@@ -77,7 +78,8 @@
       if (!teams[1]) teams[1] = cpuPick(teams[2]);
       if (!teams[2]) teams[2] = cpuPick(teams[1]);
       teams.home = Math.random() < 0.5 ? 1 : 2; // whose stadium (and weather) this game is at
-      WEATHER.setFor(teams[teams.home]);
+      if (!dev && PROGRESS.data.games === 0) teams.weather = "clear"; // first game ever: clear skies, easy to read
+      WEATHER.setFor(teams[teams.home], teams.weather);
       VS.teams = teams; VS.t = 0; mode = "versus";
     }
   }
@@ -102,7 +104,7 @@
   const UNLOCK = { id: null, t: 0 };
   const DEV_ITEMS = ["DEV: 4TH & 1 AT OPP 30", "DEV: 2-MIN DRILL, DOWN 4", "DEV: GOAL LINE, 1ST & GOAL", "DEV: RED ZONE DEFENSE"];
   // Pause menu: either player can pause (PAUSE on the phone, P / Esc / Enter on the keyboard).
-  const BASE_ITEMS = ["RESUME", "RESTART GAME", "QUIT TO TITLE", "WEATHER: ON", "SHOW SAVE CODE", "RESTORE SAVE CODE", "RESET PROGRESS"];
+  const BASE_ITEMS = ["RESUME", "RESTART GAME", "QUIT TO TITLE", "WEATHER: ON", "BACK UP PROGRESS", "RESTORE PROGRESS", "RESET PROGRESS"];
   const pauseItems = () => BASE_ITEMS.map(i => i.startsWith("WEATHER") ? "WEATHER: " + (WEATHER.enabled() ? "ON" : "OFF") : i === "RESET PROGRESS" && pause.armReset ? "RESET? PICK AGAIN TO ERASE" : i).concat(dev ? DEV_ITEMS : []);
   let PAUSE_ITEMS = BASE_ITEMS;
   const pause = { on: false, sel: 0, by: 1, lastHuman: null, msg: "", armReset: false };
@@ -126,25 +128,25 @@
     for (const s of [1, 2]) {
       if (INPUT.pressed(s, "start")) { pause.on = false; return; }
       if (INPUT.pressed(s, "up") || INPUT.pressed(s, "down")) { pause.msg = ""; if (pause.armReset) { pause.armReset = false; PAUSE_ITEMS = pauseItems(); } }
-      if (INPUT.pressed(s, "up")) pause.sel = (pause.sel + PAUSE_ITEMS.length - 1) % PAUSE_ITEMS.length;
-      if (INPUT.pressed(s, "down")) pause.sel = (pause.sel + 1) % PAUSE_ITEMS.length;
+      if (INPUT.pressed(s, "up")) pause.sel = Math.max(0, pause.sel - 1); // no wrap-around, so UP from RESUME can't land on RESET
+      if (INPUT.pressed(s, "down")) pause.sel = Math.min(PAUSE_ITEMS.length - 1, pause.sel + 1);
       if (INPUT.pressed(s, "z") || INPUT.pressed(s, "x")) {
         const pick = PAUSE_ITEMS[pause.sel];
         // menu items that keep the pause screen open
         if (pick.startsWith("WEATHER")) { WEATHER.toggle(); PAUSE_ITEMS = pauseItems(); pause.msg = WEATHER.enabled() ? "WEATHER ON: " + WEATHER.label() : "WEATHER OFF FOR NOW"; return; }
-        if (pick === "SHOW SAVE CODE") {
-          const code = PROGRESS.code(); let copied = false;
-          try { navigator.clipboard.writeText(code).then(() => {}, () => {}); copied = true; } catch (e) {}
-          pause.msg = copied ? "SAVE CODE COPIED · PASTE IT IN A NOTE TO KEEP IT SAFE" : "SAVE CODE: " + code.slice(0, 40);
-          console.log("Dadmo Bowl save code:", code); return;
+        if (pick === "BACK UP PROGRESS") {
+          // The whole code in a laptop dialog, already selected, ready to copy into a note.
+          const code = PROGRESS.code();
+          window.prompt("Your Dadmo Bowl backup code. Copy it (Cmd+C) and keep it in a note:", code);
+          pause.msg = "BACKUP CODE SHOWN ON THE LAPTOP"; return;
         }
-        if (pick === "RESTORE SAVE CODE") {
-          const str = window.prompt("Paste your Dadmo Bowl save code:");
+        if (pick === "RESTORE PROGRESS") {
+          const str = window.prompt("Paste your Dadmo Bowl backup code (or type UNDO to bring back progress from before the last reset):");
           pause.msg = str == null ? "" : PROGRESS.restore(str) ? "PROGRESS RESTORED!" : "THAT CODE DIDN'T WORK";
           return;
         }
         if (pick === "RESET PROGRESS") { pause.armReset = true; PAUSE_ITEMS = pauseItems(); pause.msg = "THIS ERASES ALL UNLOCKS. PICK AGAIN TO CONFIRM"; return; }
-        if (pick.startsWith("RESET?")) { PROGRESS.reset(); pause.armReset = false; PAUSE_ITEMS = pauseItems(); pause.msg = "PROGRESS RESET · BACK TO 5 TEAMS"; return; }
+        if (pick.startsWith("RESET?")) { PROGRESS.reset(); pause.armReset = false; PAUSE_ITEMS = pauseItems(); pause.msg = "PROGRESS RESET · UNDO WITH RESTORE PROGRESS + 'UNDO'"; return; }
         pause.on = false;
         const D = GAME.dev;
         if (pick === "DEV: 4TH & 1 AT OPP 30") D.situation({ down: 4, togo: 1, los: 70, poss: 1 });
@@ -166,7 +168,7 @@
     if (mode === "select") { const P = SEL.slot[t]; if (!P.human) return L;
       return P.locked ? Object.assign(L, { x: "CHANGE" }) : Object.assign(L, { x: "BACK", z: "LOCK IN", left: "PREV", right: "NEXT", up: "PREV", down: "NEXT" }); }
     if (mode === "versus") return Object.assign(L, { z: "KICK OFF", x: "KICK OFF" });
-    if (mode === "unlock") return Object.assign(L, { z: "CONTINUE" });
+    if (mode === "unlock") return Object.assign(L, { z: "PLAY THEM" });
     const G = GAME.state;
     if (!G.human[t]) return L;
     const offense = t === G.poss, car = G.ball && G.ball.state === "held" ? G.ball.holder : null;
@@ -203,7 +205,7 @@
     if (window.PADS && window.PADS.pick) for (const s of [1, 2]) if (window.PADS.connected(s)) window.PADS.pick(s, pickFor(s));
     if (mode === "title") {
       // hold PAUSE for 3 seconds to flip developer mode
-      if (INPUT.held(1, "start") || INPUT.held(2, "start")) { holdStart += dt; if (holdStart > 3 && holdStart - dt <= 3) setDev(!dev); } else holdStart = 0;
+      if (INPUT.kbHeld(1, "start")) { holdStart += dt; if (holdStart > 3 && holdStart - dt <= 3) setDev(!dev); } else holdStart = 0;
       for (const s of [1, 2]) {
         for (const k of ["up", "down", "left", "right"]) if (INPUT.pressed(s, k)) { const r = PROGRESS.cheatKey(k); if (r) cheatFlash(r === "again"); }
         if (INPUT.pressed(s, "z") || INPUT.pressed(s, "x")) {
@@ -211,15 +213,15 @@
           return dev ? start(human) : openSelect(human);
         }
       }
-      if (demo) start({ 1: false, 2: false }, { 1: TEAMS.list[Math.floor(Math.random() * 12)].id, 2: TEAMS.list[Math.floor(Math.random() * 12)].id });
+      if (demo) { const a = cpuPick(null); start({ 1: false, 2: false }, { 1: a, 2: cpuPick(a) }); }
       return;
     }
     if (mode === "select") return selectStep(dt);
     if (mode === "versus") return versusStep(dt);
-    if (mode === "unlock") { UNLOCK.t += dt; if (UNLOCK.t > 1.6 && (INPUT.pressed(1, "z") || INPUT.pressed(2, "z"))) { UNLOCK.id = null; toTitle(); } return; }
+    if (mode === "unlock") { UNLOCK.t += dt; if (UNLOCK.t > 1.6 && (INPUT.pressed(1, "z") || INPUT.pressed(2, "z"))) { const id = UNLOCK.id; UNLOCK.id = null; openSelect(pause.lastHuman, id); } return; }
     const G = GAME.state;
     if (pause.on) return pauseStep();
-    if (!demo && (INPUT.pressed(1, "start") || INPUT.pressed(2, "start"))) { pause.on = true; pause.sel = 0; pause.msg = ""; pause.armReset = false; PAUSE_ITEMS = pauseItems(); return; }
+    if (!demo && G.phase !== "over" && (INPUT.pressed(1, "start") || INPUT.pressed(2, "start"))) { pause.on = true; pause.sel = 0; pause.msg = ""; pause.armReset = false; PAUSE_ITEMS = pauseItems(); return; }
     // Player 2 can take over from the computer mid-game only by connecting a phone.
     if (!demo && !G.human[2] && window.PADS && window.PADS.connected(2)) G.human[2] = true;
     const wasOver = G.phase === "over";
@@ -229,7 +231,7 @@
     if (G.phase === "over" && G.overT > 2.5) {
       if (demo) { if (G.overT > 6) start({ 1: false, 2: false }); }
       else if (INPUT.pressed(1, "z") || INPUT.pressed(2, "z")) {
-        if (UNLOCK.id) { mode = "unlock"; UNLOCK.t = 0; SFX.fanfare(); } else toTitle();
+        if (UNLOCK.id) { mode = "unlock"; UNLOCK.t = 0; SFX.fanfare(); } else openSelect(pause.lastHuman);
       }
     }
   }

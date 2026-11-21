@@ -33,6 +33,7 @@ const INPUT = (() => {
   return {
     poll,
     held: (s, k) => !!cur[s][k],
+    kbHeld: (s, k) => !!kb[s][k], // the laptop keyboard only (developer shortcuts)
     pressed: (s, k) => !!cur[s][k] && !prev[s][k],
     anyPressed: s => KEYS.some(k => cur[s][k] && !prev[s][k]),
     dir(s) {

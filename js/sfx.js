@@ -28,6 +28,7 @@ const SFX = (() => {
     chime() { [523, 659, 784, 1047].forEach((f, i) => tone(f, i * 0.09, 0.35, "square", 0.06)); tone(1568, 0.36, 0.5, "triangle", 0.05); },
     // helmets crashing together
     slam() { noise(0, 0.25, 0.25); tone(110, 0, 0.3, "square", 0.12, 40); },
+    buzz() { tone(90, 0, 0.18, "sawtooth", 0.07); },
     blip() { tone(880, 0, 0.05, "square", 0.04); },
     lock() { tone(660, 0, 0.08, "square", 0.06); tone(990, 0.07, 0.12, "square", 0.06); },
     fanfare() { [392, 523, 659, 784, 659, 784, 1047].forEach((f, i) => tone(f, i * 0.12, 0.22, "square", 0.06)); },
