@@ -43,6 +43,17 @@
         sendState();
         clearInterval(pingTimer);
         pingTimer = setInterval(() => send({ t: "ping", ts: performance.now() }), 1000);
+      } else if (msg.t === "labels") {
+        // Button labels follow the game: RUN/PASS before the snap, THROW/NEXT in the pocket, TACKLE/SWITCH on defense...
+        for (const [k, id] of [["x", "lx"], ["z", "lz"], ["up", "lup"], ["down", "ldown"], ["left", "lleft"], ["right", "lright"]]) {
+          const el = $(id); const v = msg[k] || "";
+          if (el.textContent !== v) {
+            el.textContent = v;
+            if (k === "x" || k === "z") { el.classList.add("flash"); setTimeout(() => el.classList.remove("flash"), 250); }
+          }
+        }
+        document.querySelector('.b[data-k="x"]').classList.toggle("off", !msg.x);
+        document.querySelector('.b[data-k="z"]').classList.toggle("off", !msg.z);
       } else if (msg.t === "pong") {
         send({ t: "rtt", ms: performance.now() - msg.ts });
       } else if (msg.t === "full") {

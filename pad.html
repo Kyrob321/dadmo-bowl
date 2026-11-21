@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/pad.css?v=1795246272">
+<link rel="stylesheet" href="css/pad.css?v=1795249159">
 </head>
 <body>
 <div class="rotate" id="rotate">TURN YOUR PHONE SIDEWAYS</div>
@@ -23,18 +23,18 @@
   </header>
 
   <div class="dpad" id="dpad" aria-label="Direction pad">
-    <div class="d up" data-k="up">▲</div>
-    <div class="d left" data-k="left">◀</div>
+    <div class="d up" data-k="up">▲<small id="lup"></small></div>
+    <div class="d left" data-k="left">◀<small id="lleft"></small></div>
     <div class="d mid"></div>
-    <div class="d right" data-k="right">▶</div>
-    <div class="d down" data-k="down">▼</div>
+    <div class="d right" data-k="right">▶<small id="lright"></small></div>
+    <div class="d down" data-k="down">▼<small id="ldown"></small></div>
   </div>
 
   <div class="logo-mid">DADMO<br>BOWL</div>
 
   <div class="buttons">
-    <div class="b-wrap"><div class="b" data-k="x">X</div><span class="b-label" id="lx">RUN</span></div>
-    <div class="b-wrap"><div class="b" data-k="z">Z</div><span class="b-label" id="lz">PASS</span></div>
+    <div class="b-wrap"><div class="b" data-k="x">X</div><span class="b-label" id="lx">START</span></div>
+    <div class="b-wrap"><div class="b" data-k="z">Z</div><span class="b-label" id="lz">START</span></div>
   </div>
 </div>
 
@@ -45,7 +45,7 @@
 </div>
 
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-<script src="js/net.js?v=1795246272"></script>
-<script src="js/pad.js?v=1795246272"></script>
+<script src="js/net.js?v=1795249159"></script>
+<script src="js/pad.js?v=1795249159"></script>
 </body>
 </html>

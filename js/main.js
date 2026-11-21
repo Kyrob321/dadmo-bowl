@@ -13,8 +13,43 @@
   }
   function toTitle() { document.body.classList.remove("playing"); mode = "title"; }
 
+  // What each phone button does right now, for player t. Directions are from the TV's point of view
+  // (offense always attacks to the right), so "right" is forward for whoever has the ball.
+  function labelsFor(t) {
+    const L = { x: "", z: "", up: "", down: "", left: "", right: "" };
+    if (mode === "title") return Object.assign(L, { x: "START", z: "START" });
+    const G = GAME.state;
+    if (!G.human[t]) return L;
+    const offense = t === G.poss, car = G.ball && G.ball.state === "held" ? G.ball.holder : null;
+    const move = { up: "MOVE", down: "MOVE", left: "MOVE", right: "MOVE" };
+    if (G.mash) return G.mash.pause > 0 ? Object.assign(L, { x: "READY", z: "READY" }) : Object.assign(L, { x: "MASH!", z: "MASH!" });
+    switch (G.phase) {
+      case "presnap":
+        if (offense) return Object.assign(L, { x: "RUN", z: "PASS", up: G.down === 4 ? (G.los >= 62 ? "FG" : "PUNT") : "" });
+        return Object.assign(L, { x: "SWITCH", z: "TACKLE" }, move);
+      case "dead": case "flight": return null; // keep whatever the phone shows between plays
+      case "kick": return G.kick.team === t ? Object.assign(L, { x: "KICK", z: "KICK" }) : L;
+      case "over": return G.overT > 2.5 ? Object.assign(L, { z: "NEW GAME" }) : L;
+      case "live": {
+        const pl = G.play;
+        if (car && car.team === t) {
+          if (car.role === "QB" && pl.type === "pass" && !pl.thrown && !pl.crossed) return Object.assign(L, { x: "NEXT", z: "THROW" }, move);
+          const fwd = car.team === G.poss ? "right" : "left", back = fwd === "right" ? "left" : "right";
+          return Object.assign(L, { z: "BURST", up: "JUKE", down: "JUKE", [fwd]: "TRUCK", [back]: "STIFF" });
+        }
+        if (G.ball.state === "air") {
+          if (G.ball.intended && G.ball.intended.team === t) return Object.assign(L, { z: "CATCH" });
+          return Object.assign(L, { x: "SWITCH", z: "JUMP" }, move);
+        }
+        return Object.assign(L, { x: "SWITCH", z: "TACKLE" }, move);
+      }
+    }
+    return L;
+  }
+
   function step(dt) {
     INPUT.poll();
+    if (window.PADS && window.PADS.labels) for (const s of [1, 2]) if (window.PADS.connected(s)) { const L = labelsFor(s); if (L) window.PADS.labels(s, L); }
     if (mode === "title") {
       for (const s of [1, 2]) {
         if (INPUT.pressed(s, "z") || INPUT.pressed(s, "x")) return start({ 1: true, 2: INPUT.active(2) });

@@ -32,6 +32,12 @@ body {
 .d.right { grid-column: 3; grid-row: 2; border-radius: 0 6px 6px 0; }
 .d.down { grid-column: 2; grid-row: 3; border-radius: 0 0 6px 6px; }
 .d.on { background: #000; color: var(--amber); }
+.d { flex-direction: column; gap: 3px; }
+.d small { font: 7px/1 var(--font); color: var(--amber); min-height: 7px; pointer-events: none; }
+.b { flex-direction: column; }
+.b-label { min-height: 10px; transition: color .15s; }
+.b-label.flash { color: #000; background: var(--amber); padding: 2px 4px; }
+.b.off { filter: grayscale(.7) brightness(.8); }
 
 .logo-mid { text-align: center; font-size: 11px; line-height: 1.8; color: var(--red); background: #1b1b1b; padding: 10px 12px; border-radius: 4px; }
 

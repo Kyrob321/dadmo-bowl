@@ -99,7 +99,7 @@ const GAME = (() => {
   }
 
   function setupKickoff(kickTeam) {
-    G.celebrate = 0; G.rep = null;
+    G.celebrate = 0; G.rep = null; G.loose = null;
     G.phase = "kick"; G.poss = kickTeam; G.los = 35; G.down = 1; G.togo = 10; G.clockRunning = false; G.mash = null;
     G.kick = { type: "kickoff", team: kickTeam, needle: 0, dir: 1, t: 0, cpuAt: rnd(0.8, 1.6) };
     G.players = [];
@@ -113,7 +113,7 @@ const GAME = (() => {
   }
 
   function setupScrimmage() {
-    G.celebrate = 0; G.rep = null;
+    G.celebrate = 0; G.rep = null; G.loose = null;
     G.phase = "presnap"; G.presnapT = 0; G.cpuSnapAt = rnd(1.1, 2.3); G.mash = null; G.play = null;
     const f = PLAYS.formation(G.los);
     const offT = G.poss, defT = other(offT);
@@ -158,7 +158,7 @@ const GAME = (() => {
   }
 
   function setupReturn(recvTeam, rx, kickTeam) {
-    G.poss = recvTeam; ST().drives++;
+    G.poss = recvTeam; ST().drives++; G.loose = null;
     G.phase = "live"; G.clockRunning = true; G.mash = null; G.rep = null;
     G.play = { type: "return", t: 0, thrown: true, handed: true, crossed: true };
     G.players = [];
@@ -533,8 +533,8 @@ const GAME = (() => {
     const r = near(offT, p => p.role === "OL" || p.role === "QB");
     const d = near(defT);
     const rOk = r && r.d < 1.8, contested = d && d.d < K.CC_RADIUS;
-    const dropOut = () => { anim(r.p, "fall", 0.4); ST().drops++; incomplete("DROPPED!"); };
-    if (!rOk && !contested) return incomplete("INCOMPLETE");
+    const dropOut = () => { anim(r.p, "catch", 0.45); ST().drops++; incomplete("DROPPED!", "drop", r.p); };
+    if (!rOk && !contested) return incomplete("INCOMPLETE", "miss");
     if (rOk && !contested) {
       if (Math.random() < K.DROP_BASE + K.DROP_SCALE * (1 - r.p.r.catch / 100)) return dropOut();
       return completeTo(r.p, null);
@@ -562,7 +562,9 @@ const GAME = (() => {
     }
     if (s <= 0.0 || !rec) { // swat (and a dead tie is knocked loose)
       anim(defP, "catch", 0.35); ST().swats++;
-      return incomplete(s <= -0.1 ? "SWATTED!" : "KNOCKED LOOSE!");
+      if (rec) anim(rec, "catch", 0.4); // the receiver reached for it...
+      const swat = s <= -0.1 || !rec;
+      return incomplete(swat ? "SWATTED!" : "KNOCKED LOOSE!", swat ? "swat" : "drop", swat ? defP : rec);
     }
     ST().contestedCatches++;
     if (s < K.CC_MOSS) { completeTo(rec, null); return tackle(rec, defP, "contested"); } // caught, but drilled right away
@@ -579,11 +581,38 @@ const GAME = (() => {
     event("catch", { team: G.poss });
   }
 
-  function incomplete(text) {
+  // What the ball does when a pass isn't caught, so the play reads right without any buttons:
+  //  "miss"  no one there: it keeps going and skips along the turf
+  //  "swat"  batted: it pops up and away off the defender's hands, then bounces
+  //  "drop"  it hits the receiver's hands and falls at his feet
+  function incomplete(text, kind, who) {
+    const b = G.ball;
     banner(text, "", 1.3, "#f3efe4");
-    fx("dust", G.ball.tx, G.ball.ty);
-    G.ball.state = "dead";
+    const fwd = (b.tx - b.fx) / Math.max(0.3, b.T);
+    if (!who) kind = "miss";
+    if (kind === "swat") {
+      // Batted off the raised hands: it leaves fast, high and sideways, with a little burst where it was hit.
+      const away = -Math.sign(fwd || 1);
+      loose(who.x + away * 0.5, who.y, away * rnd(5, 7), rnd(-3.5, 3.5), rnd(8, 10), 7.5);
+      fx("spark", who.x, who.y);
+    }
+    else if (kind === "drop") { loose(who.x + 0.4 * (who.face || 1), who.y, rnd(-1.2, 1.2), rnd(-1.2, 1.2), 3, 7); fx("spark", who.x, who.y); }
+    else { loose(b.tx, b.ty, fwd * 0.3, (b.ty - b.fy) / Math.max(0.3, b.T) * 0.3, 3.5, 0.5); fx("dust", b.tx, b.ty); }
+    b.state = "dead";
     endPlay({ type: "inc" });
+  }
+
+  // A loose ball with simple bounce physics (yards on the field, z = height). Drawn instead of the normal ball.
+  function loose(x, y, vx, vy, vz, z) { G.loose = { x, y, z: z || 1, vx, vy, vz, t: 0 }; }
+  function updateLoose(dt) {
+    const l = G.loose; if (!l) return;
+    l.t += dt; l.vz -= 26 * dt;
+    l.x += l.vx * dt; l.y += l.vy * dt; l.z += l.vz * dt;
+    if (l.z <= 0) {
+      l.z = 0;
+      if (l.vz < -2) { l.vz = -l.vz * 0.45; l.vx *= 0.6; l.vy *= 0.6; fx("dust", l.x, l.y); }
+      else { l.vz = 0; l.vx *= 0.9; l.vy *= 0.9; }
+    }
   }
 
   function updateBall(dt) {
@@ -765,6 +794,12 @@ const GAME = (() => {
         const lost = Math.random() < CFG.NFL.fumbleLostShare / 100;
         if (lost) ST().fumblesLost++;
         banner("FUMBLE!", lost ? "RECOVERED BY " + CFG.TEAMS[by.team].short : "OFFENSE RECOVERS", 1.8);
+        // The ball pops out and bounces; whoever recovers dives on top of where it ends up.
+        const vx = rnd(-3, 3), vy = rnd(-3, 3);
+        loose(car.x, car.y, vx, vy, rnd(5, 8), 1.5); G.ball.state = "dead";
+        const recTeam = lost ? by.team : car.team;
+        const rec = recTeam === car.team ? (G.players.filter(p => p.team === car.team && p !== car).sort((a, c) => dist(a, car) - dist(c, car))[0] || car) : by;
+        if (rec !== car) { rec.x = car.x + vx * 0.5; rec.y = car.y + vy * 0.5; rec.lying = true; anim(rec, "dive", 0.4); }
         event("fumble", { lost });
         return endPlay({ type: "tackle", x: car.x, carrierTeam: lost ? by.team : car.team });
       }
@@ -878,6 +913,7 @@ const GAME = (() => {
   // ---------- main update ----------
   function update(dt) {
     G.time = (G.time || 0) + dt;
+    updateLoose(dt);
     if (G.shake > 0) G.shake = Math.max(0, G.shake - dt);
     if (G.hype > 0) G.hype -= dt;
     if (G.banner) { G.banner.t -= dt; if (G.banner.t <= 0) G.banner = null; }

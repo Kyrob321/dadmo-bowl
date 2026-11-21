@@ -50,6 +50,7 @@
         if (conns[msg.id] && conns[msg.id] !== conn) conns[msg.id].close();
         conns[msg.id] = conn; conn._slot = s; conn._id = msg.id;
         conn.send({ t: "welcome", slot: s });
+        lastLabels[s] = null; // make sure this phone gets the current labels
         $("slot" + s).classList.add("in");
         $("state" + s).textContent = "READY";
       } else if (msg.t === "in" && conn._slot) {
@@ -77,7 +78,13 @@
   }
 
   // The game reads phone buttons from here (keyboard lives in input.js).
-  window.PADS = { inputs, connected: s => !!(slots[s] && conns[slots[s]]) };
+  const lastLabels = {};
+  function sendTo(s, msg) { const c = slots[s] && conns[slots[s]]; if (c && c.open) c.send(msg); }
+  window.PADS = {
+    inputs, connected: s => !!(slots[s] && conns[slots[s]]),
+    // Only sends when the labels actually change (and always to a phone that just joined).
+    labels(s, L) { const k = JSON.stringify(L); if (lastLabels[s] === k) return; lastLabels[s] = k; sendTo(s, Object.assign({ t: "labels" }, L)); },
+  };
 
   if (typeof Peer === "undefined") setNet("COULD NOT LOAD THE LINK LIBRARY · CHECK INTERNET", "bad");
   else openRoom();

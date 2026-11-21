@@ -161,6 +161,7 @@ const RENDER = (() => {
         case "stiff": return ["stiff", 0];
         case "truck": return ["truck", 0];
         case "lunge": return ["lunge", 0];
+        case "dive": return ["dive", 0];
         case "juke": return ["run", Math.floor(k * 4) % 4];
       }
     }
@@ -191,6 +192,12 @@ const RENDER = (() => {
     for (const e of G.fx) {
       const k = (G.time - e.t0) / 0.6; if (k < 0 || k > 1) continue;
       const x = sx(e.x), y = sy(e.y);
+      if (e.kind === "spark") { // a quick white starburst up at hand height: the ball got hit
+        if (k > 0.45) continue;
+        ctx.fillStyle = "rgba(255,255,255," + (1 - k * 2) + ")";
+        for (let i = 0; i < 6; i++) { const a = i * 1.05, r = 3 + k * 16; ctx.fillRect(Math.round(x + Math.cos(a) * r), Math.round(y - 24 + Math.sin(a) * r * 0.7), 2, 2); }
+        continue;
+      }
       ctx.fillStyle = "rgba(214,196,150," + (0.85 * (1 - k)) + ")";
       for (let i = 0; i < 6; i++) {
         const a = i * 1.05 + e.t0, r = 2 + k * 9;
@@ -209,7 +216,17 @@ const RENDER = (() => {
   }
 
   function ball(G) {
-    const b = G.ball; if (!b || b.state === "held" && !b.holder) return;
+    if (G.loose) {
+      // A loose ball: shadow on the grass, ball above it, tumbling end over end.
+      const l = G.loose, x = sx(l.x), y = sy(l.y), z = Math.round(l.z * 3);
+      ctx.fillStyle = "rgba(0,0,0,.35)"; ctx.fillRect(x - 2, y - 1, 4, 2);
+      const spin = Math.floor(l.t * 14) % 2 && (l.z > 0.05 || Math.hypot(l.vx, l.vy) > 0.4);
+      ctx.fillStyle = "#7a3f12";
+      if (spin) ctx.fillRect(x - 1, y - z - 3, 3, 5); else ctx.fillRect(x - 2, y - z - 2, 5, 3);
+      ctx.fillStyle = "#fff"; ctx.fillRect(x, y - z - 1, 1, 1);
+      return;
+    }
+    const b = G.ball; if (!b || b.state === "dead" || (b.state === "held" && !b.holder)) return;
     let x = sx(b.x); const y = sy(b.y);
     if (b.state === "air") { ctx.fillStyle = "rgba(0,0,0,.35)"; ctx.fillRect(x - 2, y - 1, 4, 2); }
     let z = b.state === "air" ? b.z * 3 : 12;
@@ -343,12 +360,19 @@ const RENDER = (() => {
 
   function bannerDraw(G) {
     const b = G.banner; if (!b) return;
-    const big = b.text.length > 12 ? 14 : 20;
-    // During kicks the banner moves up so it never covers the kicker or the meter.
-    const cy = (G.phase === "kick" || G.phase === "flight") ? TOP + 30 : VH / 2;
-    ctx.fillStyle = "rgba(0,0,0,.55)"; ctx.fillRect(0, cy - 24, VW, b.sub ? 50 : 38);
-    text(b.text, VW / 2, cy - 16, b.color, big, "center");
-    if (b.sub) text(b.sub, VW / 2, cy + 10, "#f3efe4", 8, "center");
+    // Big moments get the middle of the screen. Play results (swats, sacks, first downs...) go in a slim
+    // strip along the top of the field so they never hide the play they describe.
+    const center = /^(TOUCHDOWN|FINAL|HALFTIME|OVERTIME|END OF|SAFETY|IT'S GOOD|NO GOOD)/.test(b.text) && G.phase !== "kick" && G.phase !== "flight";
+    if (center) {
+      const big = b.text.length > 12 ? 14 : 20, cy = VH / 2;
+      ctx.fillStyle = "rgba(0,0,0,.55)"; ctx.fillRect(0, cy - 24, VW, b.sub ? 50 : 38);
+      text(b.text, VW / 2, cy - 16, b.color, big, "center");
+      if (b.sub) text(b.sub, VW / 2, cy + 10, "#f3efe4", 8, "center");
+      return;
+    }
+    const y0 = 22, line = b.text + (b.sub ? "  ·  " + b.sub : "");
+    ctx.fillStyle = "rgba(0,0,0,.7)"; ctx.fillRect(0, y0, VW, 18);
+    text(line, VW / 2, y0 + 5, b.color, 8, "center");
   }
 
   function draw(G, time) {
