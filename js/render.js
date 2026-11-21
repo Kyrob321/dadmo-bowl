@@ -158,6 +158,10 @@ const RENDER = (() => {
         case "catch": return ["catch", 0];
         case "kick": return ["kick", k < 0.35 ? 0 : 1];
         case "fall": return [k < 0.55 ? "fall" : "down", 0];
+        case "stiff": return ["stiff", 0];
+        case "truck": return ["truck", 0];
+        case "lunge": return ["lunge", 0];
+        case "juke": return ["run", Math.floor(k * 4) % 4];
       }
     }
     if (p.down > 0 || p.lying) return ["down", 0];
@@ -247,16 +251,18 @@ const RENDER = (() => {
       if (!G.human[t]) { lines[t] = "CPU"; continue; }
       const offense = t === G.poss;
       const car = G.ball && G.ball.state === "held" ? G.ball.holder : null;
-      if (G.mash) lines[t] = "MASH X + Z!";
+      if (G.mash) lines[t] = G.mash.pause > 0 ? "GET READY..." : "MASH X + Z!";
       else if (G.phase === "presnap") lines[t] = offense ? "X RUN  Z PASS" + (G.down === 4 ? (G.los >= 62 ? "  ▲ FIELD GOAL" : "  ▲ PUNT") : "") : "X SWITCH  MOVE";
       else if (G.phase === "kick") lines[t] = G.kick.team === t ? "Z KICK!" : "";
       else if (G.phase === "live") {
         const pl = G.play;
         if (car && car.team === t) {
           if (car.role === "QB" && pl.type === "pass" && !pl.thrown && !pl.crossed) lines[t] = "X NEXT  Z THROW";
-          else lines[t] = "Z BURST";
-        } else if (G.ball.state === "air") lines[t] = G.ball.intended && G.ball.intended.team === t ? "GO GET IT" : "Z JUMP";
-        else lines[t] = "X SWITCH  Z DIVE";
+          else {
+            lines[t] = "UP/DN JUKE  FWD TRUCK  BACK STIFF  Z BURST";
+          }
+        } else if (G.ball.state === "air") lines[t] = G.ball.intended && G.ball.intended.team === t ? "Z CATCH (TIME IT!)" : "Z JUMP (TIME IT!)";
+        else lines[t] = "X SWITCH  Z TACKLE (TIME IT!)";
       } else if (G.phase === "over") lines[t] = G.overT > 2.5 ? "Z NEW GAME" : "";
     }
     const T = CFG.TEAMS;
@@ -287,10 +293,52 @@ const RENDER = (() => {
     const m = G.mash; if (!m) return;
     const T = CFG.TEAMS, w = 200, x0 = VW / 2 - w / 2, y0 = TOP + 6;
     ctx.fillStyle = "rgba(0,0,0,.8)"; ctx.fillRect(x0 - 8, y0 - 4, w + 16, 30);
-    text("MASH!", VW / 2, y0, "#ffb627", 8, "center");
+    text(m.pause > 0 ? "MASH IN " + Math.ceil(m.pause * 4) / 4 + "..." : "MASH!", VW / 2, y0, "#ffb627", 8, "center");
     ctx.fillStyle = T[m.def.team].color; ctx.fillRect(x0, y0 + 13, w, 8);
     ctx.fillStyle = T[m.car.team].color; ctx.fillRect(x0, y0 + 13, w * m.meter, 8);
     ctx.fillStyle = "#fff"; ctx.fillRect(x0 + w / 2, y0 + 11, 1, 12);
+  }
+
+  // A small timing bar over the action: the needle sweeps toward contact; press in the green.
+  function timingBar(x, y, t0, t1, now, ideal, w, color, fb, label) {
+    const bw = 64, x0 = Math.round(x - bw / 2), span = t1 - t0;
+    const px = v => x0 + bw * Math.max(0, Math.min(1, (v - t0) / span));
+    ctx.fillStyle = "rgba(0,0,0,.75)"; ctx.fillRect(x0 - 2, y - 2, bw + 4, 9);
+    ctx.fillStyle = "#5a1d1d"; ctx.fillRect(x0, y, bw, 5);
+    ctx.fillStyle = "#7fd68f"; ctx.fillRect(px(ideal - w), y, Math.max(2, px(ideal + w) - px(ideal - w)), 5);
+    ctx.fillStyle = "#fff"; ctx.fillRect(px(now) - 1, y - 2, 2, 9);
+    ctx.fillStyle = color; ctx.fillRect(x0 - 2, y + 7, bw + 4, 1);
+    if (label) text(label, x0 - 3, y - 1, color, 8, "right");
+  }
+
+  function timing(G) {
+    const pl = G.play;
+    if (G.phase !== "live" || !pl) return;
+    const rep = G.rep;
+    if (rep) {
+      const x = sx((rep.car.x + rep.def.x) / 2), y = sy(Math.min(rep.car.y, rep.def.y)) - 56;
+      const end = rep.tc + 0.12;
+      if (G.human[rep.car.team] && G.control[rep.car.team] === rep.car)
+        timing_(x, y, rep.t0, end, pl.t, rep.ideal, rep.wOff, CFG.TEAMS[rep.car.team].trim, "RUN");
+      if (G.human[rep.def.team] && G.control[rep.def.team] === rep.def)
+        timing_(x, y + 11, rep.t0, end, pl.t, rep.ideal, rep.wDef, CFG.TEAMS[rep.def.team].trim, "HIT");
+    }
+    const b = G.ball;
+    if (b && b.state === "air" && b.ideal != null) {
+      const x = sx(b.tx), y = sy(b.ty) - 56, end = b.T + 0.05;
+      const off = G.poss, def = off === 1 ? 2 : 1, cp = G.control[def];
+      if (G.human[off] && b.intended) timing_(x, y, 0, end, b.t, b.ideal, b.wOff, CFG.TEAMS[off].trim, "CATCH");
+      if (G.human[def] && cp && Math.hypot(cp.x - b.tx, cp.y - b.ty) < 10) timing_(x, y + 11, 0, end, b.t, b.ideal, GAME.windowFor(cp.r.cov), CFG.TEAMS[def].trim, "JUMP");
+    }
+  }
+  function timing_(x, y, t0, t1, now, ideal, w, color, label) { timingBar(x, y, t0, t1, now, ideal, w, color, null, label); }
+
+  function popsDraw(G) {
+    if (!G.pops) return;
+    for (const p of G.pops) {
+      const k = (G.time - p.t0) / 0.9; if (k < 0 || k > 1) continue;
+      text(p.text, sx(p.x), sy(p.y) - 40 - k * 14, p.color, 8, "center");
+    }
   }
 
   function bannerDraw(G) {
@@ -318,7 +366,7 @@ const RENDER = (() => {
     field(G, time); scrimmageLines(G); playArt(G); goalposts();
     const list = G.players.slice().sort((a, b) => a.y - b.y);
     for (const p of list) player(G, p, time);
-    effects(G);
+    effects(G); timing(G); popsDraw(G);
     // target receiver ring for a human quarterback
     const pl = G.play, car = G.ball && G.ball.state === "held" ? G.ball.holder : null;
     if (pl && pl.type === "pass" && !pl.thrown && car && car.role === "QB" && G.human[G.poss] && G.receivers[G.target]) {
