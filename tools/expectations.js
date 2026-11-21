@@ -53,3 +53,23 @@ window.EXPECT_DIFF = [
   // both a newer player and Kyle. Added STARTER (+5) between ROOKIE and PRO, predicted Dad 25..60, measured 43.
   [5, "STARTER", 25, 60],
 ];
+
+// Superstar powers (written before testing): each team vs Krush with powers ON minus the same matchup with powers OFF.
+// Same units as EXPECT. Ranges come from the Superstars page, turned into team-level stats.
+window.EXPECT_STARS = {
+  krush:      [["comp","off",1,4]],                                  // CLUTCH: better on 3rd/4th down and late
+  anvils:     [["missTk","off",2,8], ["ypc","off",0.2,0.9]],         // FREIGHT TRAIN
+  gators:     [["sack","def",1.5,4]],                                // HEAT SEEKER
+  comets:     [["air","off",0.5,3], ["ypa","off",0.3,1.2]],          // CANNON
+  bolts:      [["ptsDrive","off",0.2,0.6], ["ptsDrive","def",-0.4,0]], // THE CAPTAIN
+  yetis:      [["int","def",1,2.5], ["comp","def",-4,-1]],           // BALL HAWK
+  rattlers:   [["missTk","off",5,15], ["yac","off",0.5,2]],          // GHOST
+  krakens:    [["fumRatio","def",1.4,2.2]],                          // THE STRIP
+  twisters:   [["sackDb","off",-4,-1.5]],                            // TORNADO
+  vipers:     [["comp","off",2,5]],                                  // GLUE HANDS
+  lawnchairs: [["ypc","off",0.4,1.0]],                               // DAD STRENGTH (drag was 2-3 yd: +2.3 ypc, cut to ~1 yd)
+  legends:    [["ptsDrive","off",0.3,0.8]],                          // PRIME TIME
+};
+// Balance with powers on: net points per drive (own minus allowed, vs Krush) for every team within 0.6 of Krush,
+// except the Bolts (up to +1.2) and the Legends (the boss). On fire: 0 to 2 times per team per game.
+window.EXPECT_BALANCE = { net: [-0.6, 0.6], bolts: [-0.6, 1.2], firePerGame: [0, 2] };

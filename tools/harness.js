@@ -109,3 +109,31 @@ window.runDiff = function (personEdge, cpuBoost, games) {
   WEATHER.force(null);
   return { person: metrics(a).ptsDrive.toFixed(2), cpu: metrics(b).ptsDrive.toFixed(2), personWin: Math.round(100 * w / games), err };
 };
+
+// Superstars: team vs Krush with powers on or off (clear weather so nothing else moves).
+window.runPow = function (teamId, games, powers) {
+  const off = {}, def = {}; let err = null;
+  const add = (acc, o) => { for (const k in o) if (typeof o[k] === "number") acc[k] = (acc[k] || 0) + o[k]; };
+  WEATHER.force("clear");
+  try { for (let g = 0; g < games; g++) {
+    const slot = g % 2 ? 1 : 2, other = slot === 1 ? 2 : 1;
+    const t = slot === 1 ? { 1: teamId, 2: "krush" } : { 1: "krush", 2: teamId }; t.powers = powers;
+    GAME.newGame({ 1: false, 2: false }, t); GAME.sim(3600);
+    add(off, GAME.state.stats.by[slot]); add(def, GAME.state.stats.by[other]);
+  } } catch (e) { err = String(e) + " " + (e.stack || "").split("\n")[1]; }
+  WEATHER.force(null);
+  return { off, def, err, games };
+};
+window.PRES = window.PRES || {};
+window.gradeStars = function () {
+  const rows = [];
+  for (const [team, exps] of Object.entries(EXPECT_STARS)) {
+    const on = PRES[team + "|on"], off = PRES[team + "|off"]; if (!on || !off) { rows.push(team + ": not run"); continue; }
+    const a = { off: metrics(on.off), def: metrics(on.def) }, b = { off: metrics(off.off), def: metrics(off.def) };
+    for (const [stat, side, lo, hi] of exps) {
+      const v = stat === "fumRatio" ? a[side].fum / Math.max(0.01, b[side].fum) : a[side][stat] - b[side][stat];
+      rows.push(`${v >= lo && v <= hi ? "PASS" : "MISS"} ${team} ${side} ${stat}: ${v.toFixed(2)} (expected ${lo}..${hi})`);
+    }
+  }
+  return rows;
+};

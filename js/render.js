@@ -188,8 +188,33 @@ const RENDER = (() => {
     let face = p.face || 1;
     if (G.mash && p === G.mash.def) face = G.mash.car.x > p.x ? 1 : -1;
     if (G.mash && p === G.mash.car) face = G.mash.def.x > p.x ? 1 : -1;
+    // superstar: a gold star under his feet so you can always find him
+    if (p.star && G.powers !== false) starIcon(x, y + 3, time);
+    const onFire = GAME.fireOn(p);
+    if (onFire) flames(x, y, time, p.seed, true);
     const img = SPRITES.get(p.team, p.skin || 0, pose, frame, face);
     ctx.drawImage(img, x - SPRITES.OX, y - SPRITES.OY);
+    if (onFire) flames(x, y, time, p.seed, false);
+  }
+  function starIcon(x, y, time) {
+    const pts = [[2, 0], [3, 0], [2, 1], [3, 1], [0, 2], [1, 2], [2, 2], [3, 2], [4, 2], [5, 2], [1, 3], [2, 3], [3, 3], [4, 3], [1, 4], [4, 4], [0, 5], [5, 5]];
+    const glow = Math.floor(time * 3) % 2;
+    ctx.fillStyle = "#000"; for (const [a, b] of pts) ctx.fillRect(x - 3 + a, y + b + 1, 1, 1);
+    ctx.fillStyle = glow ? "#ffe14a" : "#ffb627"; for (const [a, b] of pts) ctx.fillRect(x - 3 + a, y + b, 1, 1);
+  }
+  // On fire: flickering pixel flames, some behind him and some in front.
+  function flames(x, y, time, seed, back) {
+    const cols = ["#ff3b1f", "#ff7a1a", "#ffb627", "#ffe14a"];
+    // tongues of flame rise from his feet up past his helmet, licking upward
+    for (let i = 0; i < 12; i++) {
+      if ((i % 2 === 0) !== back) continue;
+      const ph = time * 10 + i * 1.9 + seed, h = 8 + Math.floor((Math.sin(ph) + 1) * 7);
+      const fxp = x - 8 + i * 1.4 + Math.sin(ph * 0.7) * 1.5;
+      for (let j = 0; j < h; j += 2) {
+        ctx.fillStyle = cols[Math.min(3, Math.floor(j / h * 4 + ((i + Math.floor(time * 12)) % 2)))];
+        ctx.fillRect(Math.round(fxp), y - 2 - j - (i % 3) * 3, 2, 2);
+      }
+    }
   }
 
   function effects(G) {
@@ -268,6 +293,25 @@ const RENDER = (() => {
     }
   }
 
+  // Bottom corners: who each side is controlling, and his power if he's the superstar.
+  function blurbs(G, time) {
+    if (G.phase === "over" || G.phase === "kick") return;
+    for (const t of [1, 2]) {
+      const p = G.control[t]; if (!p || !p.name) continue;
+      const T = CFG.TEAMS[t], left = t === 1, x = left ? 4 : VW - 4, al = left ? "left" : "right";
+      const star = p.star && G.powers !== false, h = star ? 30 : 12, w = star ? 236 : Math.max(120, p.name.length * 8 + 40);
+      const bx = left ? 2 : VW - 2 - w, by = VH - 16 - h;
+      ctx.fillStyle = "rgba(0,0,0,.62)"; ctx.fillRect(bx, by, w, h);
+      ctx.fillStyle = T.color; ctx.fillRect(left ? bx : bx + w - 2, by, 2, h);
+      const role = p.role === "CV" ? "" : " · " + (p.role === "DL" ? (p.key === "DL0" || p.key === "DL3" ? "DE" : "DT") : p.role);
+      text((star ? "★ " : "") + p.name + role, x + (left ? 4 : -4), by + 2, star ? "#ffe14a" : "#f3efe4", 8, al);
+      if (star) {
+        text(p.power, x + (left ? 4 : -4), by + 12, T.trim, 8, al);
+        text(p.blurb, x + (left ? 4 : -4), by + 21, "#9fb1c5", 8, al);
+      }
+      if (GAME.fireOn(p)) { ctx.fillStyle = "rgba(0,0,0,.62)"; ctx.fillRect(bx, by - 11, 64, 11); text("ON FIRE", bx + 4, by - 10, Math.floor(time * 8) % 2 ? "#ff7a1a" : "#ffe14a", 8); }
+    }
+  }
   function prompts(G) {
     const lines = { 1: "", 2: "" };
     for (const t of [1, 2]) {
@@ -408,7 +452,8 @@ const RENDER = (() => {
     for (const t of [1, 2]) if (G.human[t] && G.phase !== "kick" && G.phase !== "over") marker(G, G.control[t], t, time);
     ctx.restore();
     weather(G, time);
-    hud(G); kickMeter(G); mashMeter(G); bannerDraw(G); prompts(G);
+    hud(G); kickMeter(G); mashMeter(G); bannerDraw(G); blurbs(G, time); prompts(G);
+    if (G.fireMsg) { const k = G.fireMsg; text("HE'S ON FIRE!", VW / 2, 52, Math.floor(time * 8) % 2 ? "#ff7a1a" : "#ffe14a", 16, "center"); text(k.name, VW / 2, 72, CFG.TEAMS[k.team].trim, 8, "center"); }
     if (window.DADMO_DEV) { ctx.fillStyle = "#ffb627"; ctx.fillRect(VW - 34, VH - 26, 30, 10); text("DEV", VW - 31, VH - 25, "#000", 8); }
   }
 

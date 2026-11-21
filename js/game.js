@@ -51,6 +51,45 @@ const GAME = (() => {
   const dirOf = p => (p.team === G.poss ? 1 : -1);
   const skill = p => (p.r.juke + p.r.stiff + p.r.truck) / 3;
 
+  // ---------- superstars, names, on fire ----------
+  const powersOn = () => G.powers !== false;
+  const has = (p, power) => !!(p && p.star && p.power === power && powersOn());
+  // Give every player a lasting identity (team + spot), a name, and his star power; then apply
+  // temporary boosts: on fire (+8 to everything) and the Bolts captain's rally (+3 per level).
+  function tag(list) {
+    const n = {};
+    for (const p of list) {
+      const k = p.team + p.role; n[k] = (n[k] || 0); p.key = p.role + n[k]++;
+      const inf = STARS.info(teamOf(p.team).id, p.key);
+      p.name = inf.name; p.star = inf.star; p.power = inf.power; p.blurb = inf.blurb;
+      let extra = 0;
+      if (fireOn(p)) extra += K.FIRE_BOOST;
+      extra += 3 * rallyLevel(p.team);
+      if (extra) { for (const r in p.r) p.r[r] = clamp(p.r[r] + extra, 25, 99); p.spd = RATINGS.speed(p.r.spd); }
+    }
+  }
+  const fireKey = p => p.team + ":" + p.key;
+  const fireOn = p => powersOn() && !!(G.fire[fireKey(p)] && G.fire[fireKey(p)].on);
+  function bigPlay(p) {
+    if (!p || !p.key || !powersOn()) return;
+    const f = G.fire[fireKey(p)] = G.fire[fireKey(p)] || { n: 0, on: false };
+    f.n++;
+    const need = has(p, "PRIME TIME") ? 1 : p.star ? 2 : 3;
+    if (!f.on && f.n >= need) { f.on = true; bump("fires", 1, p.team); event("fire", { team: p.team, name: p.name }); G.fireMsg = { name: p.name, team: p.team, t: 2.4 }; }
+  }
+  function badPlay(p) {
+    if (!p || !p.key) return;
+    const f = G.fire[fireKey(p)]; if (!f) return;
+    f.n = 0; if (f.on) { f.on = false; pop("FIRE'S OUT", p.x, p.y, "#9fb1c5"); }
+  }
+  function fireOut(team) { for (const k in G.fire) if (k.startsWith(team + ":")) { G.fire[k].on = false; G.fire[k].n = 0; } }
+  // The Captain: each first down on a Bolts drive adds a level (max 2); trailing adds one on either side of the ball.
+  function rallyLevel(team) {
+    if (!powersOn() || STARS.powerOf(teamOf(team).id) !== "THE CAPTAIN" || !G.rally) return 0;
+    return Math.min(2, (G.poss === team ? G.rally[team] || 0 : 0) + (trailing(team) ? 1 : 0));
+  }
+  function powerPop(p, text) { pop(text, p.x, p.y - 1, "#ffe14a"); bump("powerUses", 1, p.team); ST()["pw_" + p.power] = (ST()["pw_" + p.power] || 0) + 1; }
+
   function anim(p, name, dur) { if (p) p.anim = { name, t0: G.time, dur }; }
   function fx(kind, x, y) { G.fx.push({ kind, x, y, t0: G.time }); if (G.fx.length > 40) G.fx.shift(); }
   function shake(s) { G.shake = Math.max(G.shake || 0, s); }
@@ -64,7 +103,10 @@ const GAME = (() => {
     if (p.engaged > 0) s *= 0.12;
     if (p.slowT > 0) s *= p.slowMul;
     s *= WEATHER.get("spd");
-    if (G.ball && G.ball.state === "held" && G.ball.holder === p) s *= WEATHER.get("carry"); // cutting with the ball on a slick field
+    if (G.ball && G.ball.state === "held" && G.ball.holder === p) {
+      s *= WEATHER.get("carry"); // cutting with the ball on a slick field
+      if (has(p, "PRIME TIME") && !G.players.some(o => o.team !== p.team && o.down <= 0 && Math.hypot(o.x - p.x, o.y - p.y) < 4)) s *= 1.07; // open-field speed
+    }
     p.vx = dx * s; p.vy = dy * s;
     const dropping = p.role === "QB" && G.play && G.play.type === "pass" && !G.play.thrown && !G.play.crossed && p.side === "off";
     if (Math.abs(dx) > 0.1 && !dropping) p.face = dx > 0 ? 1 : -1;
@@ -108,11 +150,12 @@ const GAME = (() => {
       human: Object.assign({ 1: true, 2: false }, human || {}),
       score: { 1: 0, 2: 0 }, quarter: 1, clock: Q, clockRunning: false, ot: false,
       banner: null, events: [], mash: null, next: null, overT: 0, plays: 0,
-      time: 0, fx: [], pops: [], shake: 0, celebrate: 0, hype: 0, rep: null,
+      time: 0, fx: [], pops: [], shake: 0, celebrate: 0, hype: 0, rep: null, fire: {}, rally: { 1: 0, 2: 0 }, fireMsg: null,
       stats: Object.assign(freshStats(), { by: { 1: freshStats(), 2: freshStats() }, q4: freshStats() }), lastZ: { 1: -9, 2: -9 },
     });
     // One team is at home; the game gets that stadium's weather.
     G.boost = (teams && teams.boost) || { 1: 0, 2: 0 };
+    G.powers = !(teams && teams.powers === false);
     G.windDir = Math.random() < 0.5 ? -1 : 1;
     G.home = (teams && teams.home) || (Math.random() < 0.5 ? 1 : 2);
     WEATHER.setFor(CFG.TEAMS[G.home].id, teams && teams.weather);
@@ -121,7 +164,7 @@ const GAME = (() => {
   }
 
   function changePoss(team, los) {
-    if (team !== G.poss) bump("drives", 1, team);
+    if (team !== G.poss) { bump("drives", 1, team); if (G.rally) G.rally[team] = 0; }
     G.poss = team; G.los = clamp(los, 1, 99); G.down = 1; G.togo = Math.min(10, 100 - G.los);
   }
 
@@ -135,6 +178,7 @@ const GAME = (() => {
     const recv = other(kickTeam);
     for (let i = 0; i < 8; i++) G.players.push(makePlayer(recv, "def", { role: "LB", x: 50 + (i % 2) * 8, y: 6 + i * 5.9 }));
     G.players.push(makePlayer(recv, "def", { role: "S", x: 92, y: C }));
+    tag(G.players);
     G.ball = { state: "tee", holder: null, x: 35, y: C, z: 0 };
     G.players.forEach(p => { p.face = p.team === kickTeam ? 1 : -1; });
     G.control = { [kickTeam]: G.players[0], [recv]: G.players[G.players.length - 1] };
@@ -147,6 +191,7 @@ const GAME = (() => {
     const offT = G.poss, defT = other(offT);
     G.players = f.off.map(s => makePlayer(offT, "off", s)).concat(f.def.map(s => makePlayer(defT, "def", s)));
     G.players.forEach(p => { p.face = p.side === "def" ? -1 : 1; });
+    tag(G.players);
     G.plans = PLAYS.makePlans(G.los, G.players.filter(p => p.side === "off"), teamOf(G.poss).style);
     G.ball = { state: "held", holder: qb(), x: G.los - 1.6, y: C, z: 1 };
     G.control = { [offT]: qb(), [defT]: G.players.find(p => p.side === "def" && p.role === "LB") };
@@ -187,7 +232,7 @@ const GAME = (() => {
   }
 
   function setupReturn(recvTeam, rx, kickTeam) {
-    G.poss = recvTeam; bump("drives", 1, recvTeam); G.loose = null;
+    G.poss = recvTeam; bump("drives", 1, recvTeam); G.loose = null; if (G.rally) G.rally[recvTeam] = 0;
     G.phase = "live"; G.clockRunning = true; G.mash = null; G.rep = null;
     G.play = { type: "return", t: 0, thrown: true, handed: true, crossed: true };
     G.players = [];
@@ -195,6 +240,7 @@ const GAME = (() => {
     G.players.push(kr);
     for (let i = 0; i < 8; i++) G.players.push(makePlayer(recvTeam, "off", { role: "OL", x: rx + rnd(6, 13), y: 5 + i * 6.1 }));
     for (let i = 0; i < 9; i++) G.players.push(makePlayer(kickTeam, "def", { role: "CV", x: rx + rnd(15, 24), y: 4 + i * 5.7 }));
+    tag(G.players);
     G.ball = { state: "held", holder: kr, x: kr.x, y: kr.y, z: 1 };
     G.players.forEach(p => { p.face = p.team === recvTeam ? 1 : -1; });
     G.control = { [recvTeam]: kr, [kickTeam]: nearestTo(kickTeam, kr) };
@@ -272,7 +318,7 @@ const GAME = (() => {
   function fgResult(kt, recv, yards, good) {
     event("fg", { team: kt, yards, good });
     if (good) {
-      G.score[kt] += 3; bump("points", 3, kt); bump("fgs", 1, kt); G.clockRunning = false;
+      G.score[kt] += 3; bump("points", 3, kt); bump("fgs", 1, kt); G.clockRunning = false; fireOut(recv);
       banner("IT'S GOOD!", yards + "-YARD FIELD GOAL", 2.2);
       return scored(kt, 2.2);
     }
@@ -465,7 +511,10 @@ const GAME = (() => {
     // Fog and wind: receivers heading deep are harder to trust. (Measured at the moment the QB decides,
     // when deep routes are usually 10+ yards out and still climbing.)
     const look = depth >= 10 ? WEATHER.get("deepLook") : 1;
-    return m * look + (depth < K.QB_SHORT ? (sb != null ? sb : K.QB_SHORT_BONUS) : 0) + (depth >= 15 ? (st.deep || 0) : 0);
+    const q = qb();
+    const starPull = has(r, "GLUE HANDS") ? 0.6 : has(r, "PRIME TIME") ? 0.8 : 0;   // the quarterback looks for his star
+    const cannonPull = q && has(q, "CANNON") && depth >= 10 ? 0.35 : 0;           // a big arm trusts the deep ball
+    return m * look + starPull + cannonPull + (depth < K.QB_SHORT ? (sb != null ? sb : K.QB_SHORT_BONUS) : 0) + (depth >= 15 ? (st.deep || 0) : 0);
   }
 
   function cpuQB(q) {
@@ -605,13 +654,17 @@ const GAME = (() => {
 
   // ---------- passing ----------
   function throwBall(q, r) {
-    const speed = 15 + q.r.pow * K.POWER_SPEED;
+    const deep = r.x - q.x >= 13;
+    const cannon = has(q, "CANNON") && deep;
+    const clutch = has(q, "CLUTCH") && (G.down >= 3 || (G.quarter >= 4 && G.score[q.team] <= G.score[other(q.team)]));
+    const speed = (15 + q.r.pow * K.POWER_SPEED) * (cannon ? 1.25 : 1);
     let T = dist(q, r) / speed;
     let tx = r.x + r.vx * T, ty = r.y + r.vy * T;
     T = Math.hypot(tx - q.x, ty - q.y) / speed;
     tx = r.x + r.vx * T; ty = r.y + r.vy * T;
     // Accuracy: every quarterback's throws wander a little, more on long balls and for lower ratings.
-    let miss = K.ACC_MISS * (0.3 + T * 0.9) * (1.55 - q.r.acc / 100);
+    let miss = K.ACC_MISS * (0.3 + (cannon ? Math.min(T, 0.6) : T) * 0.9) * (1.55 - Math.min(99, q.r.acc + (clutch ? 14 : 0)) / 100);
+    if (cannon) powerPop(q, "CANNON!"); else if (clutch) powerPop(q, "CLUTCH!");
     // Throwing with a rusher in your face: the ball comes out less accurate.
     if (G.players.some(o => o.team !== q.team && o.down <= 0 && dist(o, q) < 3)) miss *= K.PRESSURE_MISS;
     miss *= WEATHER.get("miss"); if (tx - G.los >= 15) miss *= WEATHER.get("deepMiss");
@@ -619,7 +672,7 @@ const GAME = (() => {
     ty = clamp(ty, 0.6, W - 0.6);
     T = Math.max(0.25, T);
     G.ball = { state: "air", fx: q.x, fy: q.y, tx, ty, t: 0, T, h: 0.8 + T * 2.4, intended: r, x: q.x, y: q.y, z: 1,
-      ideal: T - K.IDEAL_LEAD, wOff: windowFor(r.r.catch), offT: null, defT: null, defP: null };
+      ideal: T - K.IDEAL_LEAD, wOff: windowFor(r.r.catch) * (clutch ? 1.5 : 1), offT: null, defT: null, defP: null, cannon };
     G.play.thrown = true; bump("att");
     bump("tgtDepth", tx - G.los); if (tx - G.los >= 15) bump("deepAtt");
     let sep = 99; for (const o of G.players) if (o.team !== r.team) sep = Math.min(sep, dist(o, r));
@@ -634,12 +687,17 @@ const GAME = (() => {
       .filter(p => p.team === team && p.down <= 0 && !(skip && skip(p)))
       .map(p => ({ p, d: dist(p, spot) })).sort((a, c) => a.d - c.d)[0];
     const r = near(offT, p => p.role === "OL" || p.role === "QB");
-    const d = near(defT);
-    const rOk = r && r.d < 1.8, contested = d && d.d < K.CC_RADIUS;
+    let d = near(defT);
+    // Ball Hawk: a pass within 4 yards of him and he's there, jumping the route.
+    const hawk = G.players.find(p => p.team === defT && has(p, "BALL HAWK") && p.down <= 0 && dist(p, spot) < 5);
+    if (hawk && (!d || d.p !== hawk)) { d = { p: hawk, d: Math.min(dist(hawk, spot), K.CC_RADIUS * 0.9) }; hawk.x += (spot.x - hawk.x) * 0.7; hawk.y += (spot.y - hawk.y) * 0.7; }
+    // Glue Hands reaches for (and hauls in) throws a normal receiver couldn't get to.
+    const rOk = r && r.d < (has(r.p, "GLUE HANDS") ? 2.3 : 1.8), contested = d && d.d < K.CC_RADIUS;
     const dropOut = () => { anim(r.p, "catch", 0.45); bump("drops"); incomplete("DROPPED!", "drop", r.p); };
     if (!rOk && !contested) return incomplete("INCOMPLETE", "miss");
     if (rOk && !contested) {
-      if (Math.random() < (K.DROP_BASE + K.DROP_SCALE * (1 - r.p.r.catch / 100)) * WEATHER.get("drop")) return dropOut();
+      if (!has(r.p, "GLUE HANDS") && Math.random() < (K.DROP_BASE + K.DROP_SCALE * (1 - r.p.r.catch / 100)) * WEATHER.get("drop")) return dropOut();
+      if (has(r.p, "GLUE HANDS") && r.d >= 1.8) { completeTo(r.p, "GLUE HANDS!"); anim(r.p, "dive", 0.4); return; }
       return completeTo(r.p, null);
     }
     // ----- contested: a hidden rep, positive favors the receiver -----
@@ -654,12 +712,16 @@ const GAME = (() => {
     const green = (rec && qo >= 0.5 ? K.GREEN : 0) - (qd >= 0.5 ? K.GREEN : 0);
     let s = K.CC_BIAS + K.CC_TIMING * (qo - qd) + green + K.CC_RATING * (offR - defP.r.cov) / 30 + sep + gauss() * K.CC_SIGMA;
     if (!rec) s -= K.CC_ERRANT; // nobody there to catch it: a defender can still jump the bad throw
+    if (rec && has(rec, "GLUE HANDS")) s += 0.8;
+    if (has(defP, "BALL HAWK")) s -= 0.85;
     s = clamp(Math.round(s * 10) / 10, -2, 2);
     ST().ccScores.push(s);
     if (s <= K.CC_INT) { // pick
       G.ball = { state: "held", holder: defP, x: defP.x, y: defP.y, z: 1 };
       G.control[defT] = defP; G.control[offT] = nearestTo(offT, defP);
       anim(defP, "catch", 0.4); shake(0.2); bump("ints");
+      if (has(defP, "BALL HAWK")) powerPop(defP, "BALL HAWK!");
+      bigPlay(defP); badPlay(qb());
       banner("INTERCEPTED!", "", 1.4, CFG.TEAMS[defT].trim); event("int", { team: defT });
       return;
     }
@@ -670,6 +732,7 @@ const GAME = (() => {
       return incomplete(swat ? "SWATTED!" : "KNOCKED LOOSE!", swat ? "swat" : "drop", swat ? defP : rec);
     }
     bump("contestedCatches");
+    if (has(rec, "GLUE HANDS")) powerPop(rec, "GLUE HANDS!");
     if (s < K.CC_MOSS) { completeTo(rec, null); return tackle(rec, defP, "contested"); } // caught, but drilled right away
     defP.down = 1.0; anim(defP, "fall", 0.4); fx("dust", defP.x, defP.y);
     completeTo(rec, "MOSSED!");
@@ -746,7 +809,9 @@ const GAME = (() => {
         const spread = G.play.type === "run" ? G.play.hole * K.RUN_HOLE + rnd(-0.4, 0.4) : rnd(-0.8, 0.9);
         const t = line ? clamp(base + K.BLOCK_RATING * (p.r.blk - o.r.blk) / 30 + spread, G.play.type === "run" ? 0.3 : 0.6, 4.8)
                        : clamp(0.9 + 0.6 * (p.r.blk - o.r.blk) / 30 + (G.play.type === "run" ? G.play.hole * 0.5 : 0) + rnd(-0.4, 0.5), 0.3, 2.6);
-        p.engaged = o.engaged = t; p.blockCd = o.blockCd = t + (line ? 0.4 : 1.2);
+        let tt = t;
+        if (line && G.play.type === "pass" && has(o, "HEAT SEEKER")) { tt = Math.max(0.47, t * 0.8); o.heat = true; } // beats his man faster (never instantly)
+        p.engaged = o.engaged = tt; p.blockCd = o.blockCd = tt + (line ? 0.4 : 1.2);
         break;
       }
     }
@@ -767,6 +832,11 @@ const GAME = (() => {
     }
     for (const p of G.players) {
       if (p.team === car.team || p.down > 0 || p.engaged > 0) continue;
+      // Tornado: the first rusher to reach him gets spun past (most of the time), and he's free to throw or run.
+      if ((pocket || (car.role === "QB" && !pl.thrown)) && has(car, "TORNADO") && !pl.tornado && dist(p, car) < 1.1) {
+        pl.tornado = true;
+        if (Math.random() < 0.8) { p.down = 0.7; anim(p, "fall", 0.4); fx("dust", p.x, p.y); anim(car, "juke", 0.35); powerPop(car, "TORNADO!"); continue; }
+      }
       // Pocket QB: an automatic sack on contact, unless he's a mobile QB, who gets a tackle rep to slip it.
       if (pocket && !(teamOf(car.team).style.scramble > 0.4)) { if (dist(p, car) < 0.9) return tackle(car, p, "sack"); continue; }
       if (G.rep) continue;
@@ -835,14 +905,17 @@ const GAME = (() => {
     const green = (move && qo >= 0.5 ? K.GREEN : 0) - (qd >= 0.5 ? K.GREEN : 0);
     let s = K.TK_BIAS + K.TK_TIMING * (qo - qd) + green + K.TK_RATING * (rOff - def.r.tkl) / 30 + moveBonus(move, car, def) + help + gauss() * K.TK_SIGMA;
     s += WEATHER.get("brk", G.quarter); // heat and soaked fields wear tacklers down late
-    s = clamp(Math.round(s * 10) / 10, -2, 2);
+    let power = null;
+    if (has(car, "FREIGHT TRAIN") && Math.abs(def.y - car.y) < 1.5 && car.vx * dirOf(car) > 0) { s += 0.28; power = "FREIGHT TRAIN!"; }
+    if (has(car, "GHOST") && !pl.ghost) { pl.ghost = true; if (qd < 0.9) { s += 0.8 * (K.TK_TIMING * (1 - Math.max(qo, 0)) + K.GREEN); power = "GHOST!"; } }
+        s = clamp(Math.round(s * 10) / 10, -2, 2);
     bump("tackleReps"); ST().repScores.push(s);
     if (humanDef) { ST().myReps = (ST().myReps || 0) + 1; if (s <= -0.2) ST().myTackles = (ST().myTackles || 0) + 1; }
     ST()["repsVs" + car.team] = (ST()["repsVs" + car.team] || 0) + 1;
     if (s >= 0.2) ST()["brokeBy" + car.team] = (ST()["brokeBy" + car.team] || 0) + 1;
     def.repCd = 0.6;
     if (s <= -0.2) return tackle(car, def, "rep", s);
-    if (s >= 0.2) return breakFree(car, def, s, move, rep.jdir);
+    if (s >= 0.2) { if (power) powerPop(car, power); return breakFree(car, def, s, power === "FREIGHT TRAIN!" ? "truck" : move, rep.jdir); }
     // -0.1, 0 or 0.1: a dead heat → mash battle (shown when a human is involved, simulated otherwise)
     bump("mashes");
     if (G.human[car.team] || G.human[def.team]) return startMash(car, def);
@@ -879,7 +952,7 @@ const GAME = (() => {
         if (INPUT.pressed(team, "z")) m.meter += 0.055 * sign;
       } else if (Math.random() < (K.CPU_MASH + 2 * (rating - 70) / 30) * dt) m.meter += 0.055 * sign;
     };
-    push(m.car.team, 1, m.car.r.bt); push(m.def.team, -1, m.def.r.tkl);
+    push(m.car.team, has(m.car, "DAD STRENGTH") ? 2 : 1, m.car.r.bt); push(m.def.team, -1, m.def.r.tkl);
     m.meter = clamp(m.meter, 0, 1);
     if (m.t > 0) return;
     G.mash = null;
@@ -897,13 +970,16 @@ const GAME = (() => {
     car.lying = by.lying = true;
     fx("dust", car.x, car.y); fx("dust", by.x, by.y);
     shake(kind === "sack" ? 0.35 : (s != null && s <= -1.5) ? 0.3 : 0.18);
-    if (kind === "sack") { bump("sacks"); banner("SACK!", "", 1.3, CFG.TEAMS[by.team].trim); event("sack", { team: by.team }); }
+    if (kind === "sack") { bump("sacks"); banner("SACK!", "", 1.3, CFG.TEAMS[by.team].trim); event("sack", { team: by.team }); bigPlay(by); badPlay(car); if (by.heat) powerPop(by, "HEAT SEEKER!"); }
+    // Dad Strength: he drags the tackler a couple more yards before going down.
+    if (kind !== "sack" && has(car, "DAD STRENGTH")) { const g = dirOf(car) * rnd(0.6, 1.4); car.x += g; by.x += g; powerPop(car, "DAD STRENGTH!"); }
     else if (s != null && s <= -1.5) pop("BIG HIT!", car.x, car.y, "#ef5a45");
     // Fumbles: rare, and likelier the bigger the defender's win.
     if (kind !== "sack") {
       let pf = K.FUMBLE_BASE + (s != null ? K.FUMBLE_BIG * Math.max(0, -s - 1) : 0);
       pf *= teamOf(by.team).flags.fumbleMul || 1;
       pf *= WEATHER.get("fum", G.quarter);
+      if (has(by, "THE STRIP")) pf *= 4;
       if (teamOf(car.team).flags.noFumble) pf = 0;
       if (Math.random() < pf) {
         bump("fumbles");
@@ -917,6 +993,8 @@ const GAME = (() => {
         const rec = recTeam === car.team ? (G.players.filter(p => p.team === car.team && p !== car).sort((a, c) => dist(a, car) - dist(c, car))[0] || car) : by;
         if (rec !== car) { rec.x = car.x + vx * 0.5; rec.y = car.y + vy * 0.5; rec.lying = true; anim(rec, "dive", 0.4); }
         event("fumble", { lost, by: by.team });
+        if (has(by, "THE STRIP")) powerPop(by, "THE STRIP!");
+        if (lost) { bigPlay(by); badPlay(car); }
         return endPlay({ type: "tackle", x: car.x, carrierTeam: lost ? by.team : car.team });
       }
     }
@@ -950,6 +1028,11 @@ const GAME = (() => {
     const x = clamp(r.x, -9.9, 109.9);
     if (r.type === "oob") G.clockRunning = false;
     if (r.carrierTeam === offT && !r.sack) recordYards(x);
+    const lc = pl.lastCar;
+    if (lc && r.carrierTeam === offT && lc.team === offT && pl.type !== "return" && !r.sack) {
+      const gain = x - pl.startLos;
+      if (gain >= 15) bigPlay(lc); else if (gain < 0) badPlay(lc);
+    }
     if (r.carrierTeam === offT) {
       if (pl.type === "return") { G.los = clamp(x <= 0 ? 20 : x, 1, 99); G.down = 1; G.togo = Math.min(10, 100 - G.los); }
       else if (x <= 0) return safety(offT);
@@ -966,7 +1049,12 @@ const GAME = (() => {
   function advanceDown(gain) {
     if (gain >= G.togo) {
       G.down = 1; G.togo = Math.min(10, 100 - G.los);
-      if (G.play && G.play.type !== "return" && gain > 0) banner("FIRST DOWN", "", 1, "#ffe14a");
+      if (G.play && G.play.type !== "return" && gain > 0) {
+        banner("FIRST DOWN", "", 1, "#ffe14a");
+        if (rallyLevel(G.poss) >= 0 && STARS.powerOf(teamOf(G.poss).id) === "THE CAPTAIN" && powersOn() && G.rally[G.poss] < 2) {
+          G.rally[G.poss]++; const q = qb(); if (q) powerPop(q, "THE CAPTAIN: RALLY +" + 3 * G.rally[G.poss]);
+        }
+      }
       return;
     }
     G.togo = Math.round((G.togo - gain) * 10) / 10;
@@ -984,6 +1072,8 @@ const GAME = (() => {
     G.mash = null; G.rep = null; G.score[team] += 7; G.clockRunning = false;
     bump("points", 7, team); bump("tds", 1, team);
     if (team === G.poss) recordYards(100);
+    if (G.play && G.play.lastCar) bigPlay(G.play.lastCar);
+    fireOut(other(team));
     event("td", { team, pickSix: team !== G.poss });
     G.celebrate = team; G.hype = 3; shake(0.3);
     banner("TOUCHDOWN!", CFG.TEAMS[team].name, 2.6, CFG.TEAMS[team].trim);
@@ -992,7 +1082,7 @@ const GAME = (() => {
 
   function safety(offT) {
     const defT = other(offT);
-    G.score[defT] += 2; bump("points", 2, defT); G.clockRunning = false;
+    G.score[defT] += 2; bump("points", 2, defT); G.clockRunning = false; fireOut(offT);
     banner("SAFETY!", "+2 " + CFG.TEAMS[defT].short, 2);
     event("safety", { team: defT });
     if (G.ot) return dead(2, () => gameOver());
@@ -1033,6 +1123,7 @@ const GAME = (() => {
     if (G.shake > 0) G.shake = Math.max(0, G.shake - dt);
     if (G.hype > 0) G.hype -= dt;
     if (G.banner) { G.banner.t -= dt; if (G.banner.t <= 0) G.banner = null; }
+    if (G.fireMsg) { G.fireMsg.t -= dt; if (G.fireMsg.t <= 0) G.fireMsg = null; }
     const tick = G.clockRunning && !G.ot && (G.phase === "live" || G.phase === "presnap" || G.phase === "dead");
     if (tick && G.clock > 0) G.clock = Math.max(0, G.clock - dt);
     if (G.phase === "live" || G.phase === "flight") dt *= CFG.ACTION_SPEED;
@@ -1074,6 +1165,7 @@ const GAME = (() => {
       if (G.ball.holder === q && pl.t > 0.3 && dist(q, rb) < 1.4) { G.ball.holder = rb; pl.handed = true; G.control[G.poss] = rb; }
     }
     const car = carrier();
+    if (car && car.team === G.poss) pl.lastCar = car;
     if (car && car.role === "QB" && pl.type === "pass" && !pl.thrown && car.x > G.los + 0.3) pl.crossed = true;
     updateBall(dt);
     if (G.phase !== "live") return;
@@ -1103,5 +1195,5 @@ const GAME = (() => {
       setupScrimmage();
     },
   };
-  return { state: G, newGame, update, sim, fgNeed, windowFor, setTeams, dev };
+  return { state: G, newGame, update, sim, fgNeed, windowFor, setTeams, dev, fireOn };
 })();

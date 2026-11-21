@@ -38,6 +38,7 @@ const CFG = {
     // Mash battle: computer presses per second
     CPU_MASH: 6.0,
     // Tackle assist for the human defender
+    FIRE_BOOST: 8, // on fire: + to every rating
     LUNGE_TIME: 0.22, LUNGE_SPEED: 1.7, DIVE_RANGE: 2.0, DIVE_Q: 0.25, ASSIST_RANGE: 7, ASSIST: 0.45, HUMAN_REP_RANGE: 2.1,
   },
 };
