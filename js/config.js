@@ -5,6 +5,7 @@ const CFG = {
     2: { name: "KYLE'S KRUSH", short: "KRUSH", color: "#2f6fd6", dark: "#173f86", trim: "#d8dde3" },
   },
   QUARTER_SECONDS: 180,   // game clock per quarter; about 15 real minutes for a full game
+  ACTION_SPEED: 0.78,     // on-field action speed (1 = original pace); lower = more time to think
   FIELD_W: 53.33,         // yards, sideline to sideline
   SPEED: { QB: 6.3, RB: 7.6, WR: 7.5, TE: 6.6, OL: 5.0, DL: 6.0, LB: 6.9, CB: 7.6, S: 7.6, KR: 7.7, CV: 7.2 },
   BALL_SPEED: 20,         // yards per second on a throw

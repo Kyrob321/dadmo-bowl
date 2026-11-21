@@ -261,7 +261,13 @@ const GAME = (() => {
       }
       if (car.role === "QB" && pl.type === "run" && !pl.handed) return; // the handoff is automatic
       if (INPUT.pressed(team, "z") && car.burstCd <= 0) { car.burst = 0.7; car.burstCd = 3; }
-      if (d.any) { setVel(car, d.dx, d.dy, 1.03); car.manual = true; }
+      if (d.any) {
+        // Runners keep their forward momentum: pressing only up or down cuts diagonally upfield.
+        const dirX = car.team === G.poss ? 1 : -1;
+        let dx = d.dx, dy = d.dy;
+        if (dx === 0) { dx = dirX * 0.8; const l = Math.hypot(dx, dy); dx /= l; dy /= l; }
+        setVel(car, dx, dy, 1.03); car.manual = true;
+      }
       return;
     }
     if (b.state === "air" && b.intended && b.intended.team === team) {
@@ -658,6 +664,9 @@ const GAME = (() => {
     const tick = G.clockRunning && !G.ot && (G.phase === "live" || G.phase === "presnap" || G.phase === "dead");
     if (tick && G.clock > 0) G.clock = Math.max(0, G.clock - dt);
 
+    // The on-field action runs a bit slower than real time so there's time to think.
+    // (The game clock above still uses real time, so games stay about the same length.)
+    if (G.phase === "live" || G.phase === "flight") dt *= CFG.ACTION_SPEED;
     switch (G.phase) {
       case "kick": return updateKick(dt);
       case "flight": return updateFlight(dt);

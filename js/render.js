@@ -206,9 +206,16 @@ const RENDER = (() => {
 
   function ball(G) {
     const b = G.ball; if (!b || b.state === "held" && !b.holder) return;
-    const x = sx(b.x), y = sy(b.y);
+    let x = sx(b.x); const y = sy(b.y);
     if (b.state === "air") { ctx.fillStyle = "rgba(0,0,0,.35)"; ctx.fillRect(x - 2, y - 1, 4, 2); }
-    const z = b.state === "air" ? b.z * 3 : 12;
+    let z = b.state === "air" ? b.z * 3 : 12;
+    if (b.state === "held" && b.holder) {
+      // Tucked against the carrier's body; when he's down, it stays pinned under him (no fake fumbles).
+      const h = b.holder, down = h.lying || h.down > 0 || (h.anim && h.anim.name === "fall");
+      x = sx(h.x) + (down ? 2 : 3) * (h.face || 1);
+      z = down ? 3 : 12;
+      if (down) { ctx.fillStyle = "#7a3f12"; ctx.fillRect(x - 2, y - z - 1, 4, 2); return; }
+    }
     ctx.fillStyle = "#7a3f12"; ctx.fillRect(x - 2, y - z - 2, 5, 3);
     ctx.fillStyle = "#fff"; ctx.fillRect(x, y - z - 1, 1, 1);
   }
