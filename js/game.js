@@ -17,7 +17,7 @@ const GAME = (() => {
       team, side, role: spec.role, id: spec.id || spec.role, man: spec.man,
       x: spec.x, y: spec.y, x0: spec.x, y0: spec.y, vx: 0, vy: 0,
       spd: CFG.SPEED[spec.role] || 6.5, face: 1, seed: seed++,
-      route: null, ri: 0, down: 0, engaged: 0, blockCd: 0, burst: 0, burstCd: 0, jump: 0, dive: 0, broke: false,
+      route: null, ri: 0, stride: 0, anim: null, lying: false, skin: Math.floor(Math.random() * 4), down: 0, engaged: 0, blockCd: 0, burst: 0, burstCd: 0, jump: 0, dive: 0, broke: false,
     };
   }
   const byId = id => G.players.find(p => p.side === "off" && p.id === id);
@@ -25,6 +25,10 @@ const GAME = (() => {
   const carrier = () => (G.ball && G.ball.state === "held" ? G.ball.holder : null);
   const teamPlayers = t => G.players.filter(p => p.team === t);
   const trailing = t => G.score[t] < G.score[other(t)];
+
+  function anim(p, name, dur) { if (p) p.anim = { name, t0: G.time, dur }; }
+  function fx(kind, x, y) { G.fx.push({ kind, x, y, t0: G.time }); if (G.fx.length > 40) G.fx.shift(); }
+  function shake(s) { G.shake = Math.max(G.shake || 0, s); }
 
   function banner(text, sub, secs, color) { G.banner = { text, sub: sub || "", t: secs || 1.6, color: color || "#ffb627" }; }
   function event(type, data) { G.events.push(Object.assign({ type, q: G.quarter }, data || {})); }
@@ -34,7 +38,8 @@ const GAME = (() => {
     if (p.burst > 0) s *= 1.35;
     if (p.engaged > 0) s *= 0.12;
     p.vx = dx * s; p.vy = dy * s;
-    if (Math.abs(dx) > 0.1) p.face = dx > 0 ? 1 : -1;
+    const dropping = p.role === "QB" && G.play && G.play.type === "pass" && !G.play.thrown && !G.play.crossed && p.side === "off";
+    if (Math.abs(dx) > 0.1 && !dropping) p.face = dx > 0 ? 1 : -1;
   }
   function seek(p, tx, ty, mul) {
     const dx = tx - p.x, dy = ty - p.y, d = Math.hypot(dx, dy);
@@ -49,6 +54,7 @@ const GAME = (() => {
       human: Object.assign({ 1: true, 2: false }, human || {}),
       score: { 1: 0, 2: 0 }, quarter: 1, clock: Q, clockRunning: false, ot: false,
       banner: null, events: [], mash: null, next: null, overT: 0, plays: 0,
+      time: 0, fx: [], shake: 0, celebrate: 0, hype: 0,
     });
     setupKickoff(other(CFG.FIRST_RECEIVER));
     banner("KICKOFF!", CFG.TEAMS[CFG.FIRST_RECEIVER].name + " RECEIVE", 1.4);
@@ -59,6 +65,7 @@ const GAME = (() => {
   }
 
   function setupKickoff(kickTeam) {
+    G.celebrate = 0;
     G.phase = "kick"; G.poss = kickTeam; G.los = 35; G.down = 1; G.togo = 10; G.clockRunning = false; G.mash = null;
     G.kick = { type: "kickoff", team: kickTeam, needle: 0, dir: 1, t: 0, cpuAt: rnd(0.8, 1.6) };
     G.players = [];
@@ -72,6 +79,7 @@ const GAME = (() => {
   }
 
   function setupScrimmage() {
+    G.celebrate = 0;
     G.phase = "presnap"; G.presnapT = 0; G.cpuSnapAt = rnd(1.1, 2.3); G.mash = null; G.play = null;
     const f = PLAYS.formation(G.los);
     const offT = G.poss, defT = other(offT);
@@ -88,6 +96,8 @@ const GAME = (() => {
       const fg = G.los >= 62;
       G.phase = "kick";
       G.kick = { type: fg ? "fg" : "punt", team: G.poss, needle: 0, dir: 1, t: 0, cpuAt: rnd(0.7, 1.5) };
+      const q = qb(); q.x = G.los - (fg ? 7 : 10); q.y = C; q.face = 1;
+      G.ball.x = q.x; G.ball.y = q.y;
       return;
     }
     G.phase = "live"; G.clockRunning = true; G.plays++;
@@ -138,7 +148,11 @@ const GAME = (() => {
     let acc = null;
     if (G.human[k.team]) { if (k.t > 0.35 && (INPUT.pressed(k.team, "z") || INPUT.pressed(k.team, "x"))) acc = 1 - Math.abs(k.needle - 0.5) * 2; }
     else if (k.t > k.cpuAt) acc = rnd(0.45, 0.97);
-    if (acc !== null) resolveKick(acc);
+    if (acc !== null) {
+      const kicker = G.players.find(p => p.team === k.team && (p.id === "K" || p.role === "QB"));
+      anim(kicker, "kick", 0.5); fx("dust", kicker.x + 0.5, kicker.y);
+      resolveKick(acc);
+    }
   }
 
   function resolveKick(acc) {
@@ -414,6 +428,7 @@ const GAME = (() => {
     ty = clamp(ty, 0.6, W - 0.6);
     G.ball = { state: "air", fx: q.x, fy: q.y, tx, ty, t: 0, T: Math.max(0.25, T), h: 0.8 + T * 2.4, intended: r, x: q.x, y: q.y, z: 1 };
     G.play.thrown = true;
+    anim(q, "throw", 0.42);
   }
 
   function resolveCatch() {
@@ -436,15 +451,18 @@ const GAME = (() => {
 
     if (out === "catch") {
       G.ball = { state: "held", holder: r.p, x: r.p.x, y: r.p.y, z: 1 };
-      r.p.route = null; G.control[offT] = r.p;
+      r.p.route = null; G.control[offT] = r.p; anim(r.p, "catch", 0.35);
       event("catch", { team: offT });
     } else if (out === "int") {
       G.ball = { state: "held", holder: d.p, x: d.p.x, y: d.p.y, z: 1 };
-      G.control[defT] = d.p; G.control[offT] = nearestTo(offT, d.p);
+      G.control[defT] = d.p; G.control[offT] = nearestTo(offT, d.p); anim(d.p, "catch", 0.4); shake(0.2);
       banner("INTERCEPTED!", "", 1.4, CFG.TEAMS[defT].trim);
       event("int", { team: defT });
     } else {
       banner(out === "swat" ? "SWATTED!" : out === "drop" ? "DROPPED!" : "INCOMPLETE", "", 1.3, "#f3efe4");
+      if (d && out === "swat") anim(d.p, "catch", 0.35);
+      if (r && out === "drop") anim(r.p, "fall", 0.4);
+      fx("dust", spot.x, spot.y);
       G.ball.state = "dead";
       endPlay({ type: "inc" });
     }
@@ -489,7 +507,7 @@ const GAME = (() => {
       if (p.dive > 0) return tackle(car, p);
       const humanInvolved = (G.human[p.team] && G.control[p.team] === p) || (G.human[car.team] && G.control[car.team] === car);
       if (humanInvolved && !pl.mashUsed && Math.random() < CFG.MASH_CHANCE) return startMash(car, p);
-      if (!p.broke && Math.random() < 0.06) { p.broke = true; p.down = 0.8; continue; }
+      if (!p.broke && Math.random() < 0.06) { p.broke = true; p.down = 0.8; anim(p, "fall", 0.35); fx("dust", p.x, p.y); continue; }
       return tackle(car, p);
     }
   }
@@ -513,14 +531,18 @@ const GAME = (() => {
     if (m.t > 0) return;
     G.mash = null;
     if (m.meter > 0.5) {
-      m.def.down = 1.1; m.car.burst = 0.6;
+      m.def.down = 1.1; m.car.burst = 0.6; anim(m.def, "fall", 0.4); fx("dust", m.def.x, m.def.y); shake(0.15);
       banner("BROKE FREE!", "", 0.9, "#7fd68f");
       event("broke", { team: m.car.team });
     } else tackle(m.car, m.def);
   }
 
   function tackle(car, by, kind) {
-    by.vx = by.vy = 0;
+    by.vx = by.vy = 0; car.vx = car.vy = 0;
+    anim(car, "fall", 0.45); anim(by, "fall", 0.45);
+    car.lying = by.lying = true;
+    fx("dust", car.x, car.y); fx("dust", by.x, by.y);
+    shake(kind === "sack" ? 0.35 : 0.18);
     if (kind === "sack") { banner("SACK!", "", 1.3, CFG.TEAMS[by.team].trim); event("sack", { team: by.team }); }
     if (kind !== "sack" && Math.random() < CFG.FUMBLE) {
       const lost = Math.random() < 0.5;
@@ -585,6 +607,7 @@ const GAME = (() => {
     G.mash = null; G.score[team] += 6; G.clockRunning = false;
     G.score[team] += 1; // extra points are automatic
     event("td", { team, pickSix: team !== G.poss });
+    G.celebrate = team; G.hype = 3; shake(0.3);
     banner("TOUCHDOWN!", CFG.TEAMS[team].name, 2.6, CFG.TEAMS[team].trim);
     scored(team, 2.6);
   }
@@ -628,6 +651,9 @@ const GAME = (() => {
 
   // ---------- main update ----------
   function update(dt) {
+    G.time = (G.time || 0) + dt;
+    if (G.shake > 0) G.shake = Math.max(0, G.shake - dt);
+    if (G.hype > 0) G.hype -= dt;
     if (G.banner) { G.banner.t -= dt; if (G.banner.t <= 0) G.banner = null; }
     const tick = G.clockRunning && !G.ot && (G.phase === "live" || G.phase === "presnap" || G.phase === "dead");
     if (tick && G.clock > 0) G.clock = Math.max(0, G.clock - dt);
@@ -654,12 +680,13 @@ const GAME = (() => {
     for (const p of G.players) {
       p.manual = false;
       for (const k of ["engaged", "blockCd", "burst", "burstCd", "jump"]) if (p[k] > 0) p[k] -= dt;
-      if (p.dive > 0) { p.dive -= dt; if (p.dive <= 0) p.down = 0.6; }
+      if (p.dive > 0) { p.dive -= dt; if (p.dive <= 0) { p.down = 0.6; fx("dust", p.x, p.y); } }
     }
     controls(G.poss, dt); controls(other(G.poss), dt);
     for (const p of G.players) {
       if (p.down > 0) { p.down -= dt; p.vx = p.vy = 0; continue; }
       if (!p.manual) aiMove(p);
+      p.stride += Math.hypot(p.vx, p.vy) * dt;
       p.x = clamp(p.x + p.vx * dt, -12, 112);
       p.y = clamp(p.y + p.vy * dt, -2, W + 2);
     }

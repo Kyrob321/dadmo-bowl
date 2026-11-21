@@ -19,23 +19,85 @@ const RENDER = (() => {
     ctx.fillStyle = color || "#f3efe4"; ctx.fillText(s, x, y);
   }
 
-  function field(G) {
+  // Pre-rendered textures: grass speckle tile and two frames of crowd.
+  let grassTile = null, crowd = null;
+  function textures() {
+    const g = document.createElement("canvas"); g.width = g.height = 32;
+    const gx = g.getContext("2d");
+    for (let i = 0; i < 140; i++) {
+      gx.fillStyle = Math.random() < 0.5 ? "rgba(0,0,0,.10)" : "rgba(255,255,255,.07)";
+      gx.fillRect(Math.floor(Math.random() * 32), Math.floor(Math.random() * 32), 1, Math.random() < 0.3 ? 2 : 1);
+    }
+    grassTile = ctx.createPattern(g, "repeat");
+    const T = CFG.TEAMS, misc = ["#d9d4c7", "#5b6470", "#8a5a3c", "#3d3d3d", "#b88c4a", "#6f8fb3"];
+    crowd = [0, 1].map(f => {
+      const c = document.createElement("canvas"); c.width = 640; c.height = 18;
+      const x = c.getContext("2d");
+      x.fillStyle = "#1d2433"; x.fillRect(0, 0, 640, 18);
+      for (let row = 0; row < 3; row++) {
+        x.fillStyle = row % 2 ? "#242c3d" : "#1a2130"; x.fillRect(0, row * 6, 640, 6);
+        for (let i = 0; i < 160; i++) {
+          const r = Math.random(), col = r < 0.38 ? T[1].color : r < 0.7 ? T[2].color : misc[Math.floor(Math.random() * misc.length)];
+          const bob = ((i + row + f) % 3 === 0) ? -1 : 0;
+          x.fillStyle = col; x.fillRect(i * 4 + (row % 2) * 2, row * 6 + 2 + bob, 3, 3);
+          x.fillStyle = "#e0b48a"; x.fillRect(i * 4 + (row % 2) * 2 + 1, row * 6 + 1 + bob, 1, 1);
+          if (f === 1 && Math.random() < 0.25) { x.fillStyle = col; x.fillRect(i * 4 + (row % 2) * 2 + 1, row * 6 - 1 + bob, 1, 2); } // arms up
+        }
+      }
+      return c;
+    });
+  }
+
+  function stands(G, time) {
+    if (!crowd) textures();
+    const fast = G.hype > 0 ? 8 : 1.5;
+    const img = crowd[Math.floor(time * fast) % 2];
+    const off = ((camX * PX * 0.5) % 128 + 128) % 128;
+    for (let x = -off; x < VW; x += 512) ctx.drawImage(img, Math.round(x), 22);
+    ctx.fillStyle = "#0b1422"; ctx.fillRect(0, 40, VW, 2);
+  }
+
+  function goalposts() {
+    for (const gx of [-10, 110]) {
+      const x = sx(gx), base = sy(FW / 2);
+      if (x < -20 || x > VW + 20) continue;
+      ctx.fillStyle = "#c9a200"; ctx.fillRect(x - 1, base - 20, 3, 20);
+      ctx.fillStyle = "#ffd400"; ctx.fillRect(x - 9, base - 22, 19, 2); ctx.fillRect(x - 9, base - 44, 2, 22); ctx.fillRect(x + 8, base - 44, 2, 22);
+    }
+  }
+
+  function field(G, time) {
     ctx.fillStyle = "#0b1422"; ctx.fillRect(0, 0, VW, VH);
+    stands(G, time);
     const T = CFG.TEAMS, own = G.poss, opp = own === 1 ? 2 : 1;
-    // grass stripes every 5 yards
-    for (let yd = -10; yd < 110; yd += 5) {
+    // grass stripes every 5 yards, then a speckle texture that scrolls with the camera
+    for (let yd = -15; yd < 115; yd += 5) {
       const x0 = sx(yd), x1 = sx(yd + 5);
       if (x1 < 0 || x0 > VW) continue;
-      ctx.fillStyle = (Math.floor(yd / 5) % 2 === 0) ? "#2b8a46" : "#27803f";
-      ctx.fillRect(x0, sy(0) - 6, x1 - x0, sy(FW) - sy(0) + 12);
+      ctx.fillStyle = (Math.floor(yd / 5) % 2 === 0) ? "#2e8d48" : "#287f40";
+      ctx.fillRect(x0, sy(0) - 3, x1 - x0, sy(FW) - sy(0) + 6);
     }
+    ctx.save(); ctx.translate(-Math.round(camX * PX) % 32, 0); ctx.fillStyle = grassTile;
+    ctx.fillRect(-32, sy(0) - 3, VW + 64, sy(FW) - sy(0) + 6); ctx.restore();
     // end zones: left is defended by the offense, right by the defense
     for (const [a, team] of [[-10, own], [100, opp]]) {
       const x0 = sx(a), x1 = sx(a + 10);
+      if (x1 < 0 || x0 > VW) continue;
       ctx.fillStyle = T[team].dark; ctx.fillRect(x0, sy(0), x1 - x0, sy(FW) - sy(0));
+      ctx.save(); ctx.beginPath(); ctx.rect(x0, sy(0), x1 - x0, sy(FW) - sy(0)); ctx.clip();
+      ctx.strokeStyle = T[team].color; ctx.lineWidth = 3;
+      for (let k = -300; k < 300; k += 14) { ctx.beginPath(); ctx.moveTo(x0 + k, sy(0)); ctx.lineTo(x0 + k + 200, sy(FW)); ctx.stroke(); }
+      ctx.restore();
       ctx.save(); ctx.translate((x0 + x1) / 2, (sy(0) + sy(FW)) / 2); ctx.rotate(a < 0 ? -Math.PI / 2 : Math.PI / 2);
       ctx.font = "16px " + FONT; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillStyle = "#000"; ctx.fillText(T[team].short, 2, 2);
       ctx.fillStyle = T[team].trim; ctx.fillText(T[team].short, 0, 0); ctx.restore();
+    }
+    // midfield logo
+    const mx = sx(50);
+    if (mx > -60 && mx < VW + 60) {
+      ctx.font = "8px " + FONT; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillStyle = "rgba(255,255,255,.22)"; ctx.fillText("DADMO", mx, sy(FW / 2) - 5); ctx.fillText("BOWL", mx, sy(FW / 2) + 6);
     }
     // lines
     ctx.fillStyle = "rgba(255,255,255,.75)";
@@ -85,29 +147,57 @@ const RENDER = (() => {
     arrow([{ x: rb.x, y: rb.y }].concat(G.plans.run.rbPath), "rgba(255,182,39,.95)", true);
   }
 
-  function player(G, p, time) {
-    const T = CFG.TEAMS[p.team];
-    const x = sx(p.x), y = sy(p.y);
-    if (x < -10 || x > VW + 10) return;
-    ctx.fillStyle = "rgba(0,0,0,.3)"; ctx.fillRect(x - 4, y - 1, 8, 2);
-    if (p.down > 0 || (p.dive > 0)) {
-      ctx.fillStyle = T.color; ctx.fillRect(x - 5, y - 5, 9, 4);
-      ctx.fillStyle = T.trim; ctx.fillRect(p.face > 0 ? x + 3 : x - 7, y - 6, 4, 4);
-      return;
+  // Which pose a player is in right now, from what the game says is happening to him.
+  function poseFor(G, p, time) {
+    if (G.mash && (p === G.mash.car || p === G.mash.def)) return ["grapple", Math.floor(time * 10) % 2];
+    if (p.dive > 0) return ["dive", 0];
+    if (p.anim && G.time - p.anim.t0 < p.anim.dur) {
+      const k = (G.time - p.anim.t0) / p.anim.dur;
+      switch (p.anim.name) {
+        case "throw": return ["throw", Math.min(2, Math.floor(k * 3))];
+        case "catch": return ["catch", 0];
+        case "kick": return ["kick", k < 0.35 ? 0 : 1];
+        case "fall": return [k < 0.55 ? "fall" : "down", 0];
+      }
     }
-    const moving = Math.hypot(p.vx, p.vy) > 0.5;
-    const step = moving ? Math.floor(time * 10 + p.seed) % 2 : 0;
-    ctx.fillStyle = "#1a1a1a";
-    ctx.fillRect(x - 3 + step, y - 4, 2, 4); ctx.fillRect(x + 1 - step, y - 4, 2, 4);
-    ctx.fillStyle = "#f3efe4"; ctx.fillRect(x - 3, y - 6, 6, 2);          // pants
-    ctx.fillStyle = T.color; ctx.fillRect(x - 3, y - 12, 6, 6);           // jersey
-    ctx.fillStyle = T.trim; ctx.fillRect(x - 3, y - 16, 6, 4);            // helmet
-    ctx.fillStyle = "#222"; ctx.fillRect(p.face > 0 ? x + 2 : x - 3, y - 14, 1, 2); // facemask
+    if (p.down > 0 || p.lying) return ["down", 0];
+    if (p.jump > 0) return ["jump", 0];
+    if (G.phase === "dead" && G.celebrate === p.team) return ["celebrate", Math.floor(time * 5 + p.seed) % 2];
+    if (G.phase === "presnap" && (p.role === "OL" || p.role === "DL")) return ["stance", 0];
+    if (G.phase === "kick" && G.kick.type !== "kickoff" && p.role === "OL") return ["stance", 0];
+    if (Math.hypot(p.vx, p.vy) > 0.6) return ["run", Math.floor(p.stride * (p.burst > 0 ? 1.8 : 1.4)) % 4];
+    return ["idle", 0];
+  }
+
+  function player(G, p, time) {
+    const x = sx(p.x), y = sy(p.y);
+    if (x < -20 || x > VW + 20) return;
+    const [pose, frame] = poseFor(G, p, time);
+    const flat = pose === "down" || pose === "dive";
+    ctx.fillStyle = "rgba(0,0,0,.28)"; ctx.fillRect(x - (flat ? 8 : 5), y - 1, flat ? 16 : 10, 2);
+    let face = p.face || 1;
+    if (G.mash && p === G.mash.def) face = G.mash.car.x > p.x ? 1 : -1;
+    if (G.mash && p === G.mash.car) face = G.mash.def.x > p.x ? 1 : -1;
+    const img = SPRITES.get(p.team, p.skin || 0, pose, frame, face);
+    ctx.drawImage(img, x - SPRITES.OX, y - SPRITES.OY);
+  }
+
+  function effects(G) {
+    if (!G.fx) return;
+    for (const e of G.fx) {
+      const k = (G.time - e.t0) / 0.6; if (k < 0 || k > 1) continue;
+      const x = sx(e.x), y = sy(e.y);
+      ctx.fillStyle = "rgba(214,196,150," + (0.85 * (1 - k)) + ")";
+      for (let i = 0; i < 6; i++) {
+        const a = i * 1.05 + e.t0, r = 2 + k * 9;
+        ctx.fillRect(Math.round(x + Math.cos(a) * r), Math.round(y - 2 - Math.abs(Math.sin(a)) * r * 0.6), 2, 2);
+      }
+    }
   }
 
   function marker(G, p, team, time) {
     if (!p) return;
-    const x = sx(p.x), y = sy(p.y) - 22 - (Math.floor(time * 4) % 2);
+    const x = sx(p.x), y = sy(p.y) - 34 - (Math.floor(time * 4) % 2);
     const T = CFG.TEAMS[team];
     ctx.fillStyle = "#000"; ctx.beginPath(); ctx.moveTo(x - 5, y - 1); ctx.lineTo(x + 5, y - 1); ctx.lineTo(x, y + 6); ctx.fill();
     ctx.fillStyle = T.trim; ctx.beginPath(); ctx.moveTo(x - 4, y); ctx.lineTo(x + 4, y); ctx.lineTo(x, y + 5); ctx.fill();
@@ -118,7 +208,7 @@ const RENDER = (() => {
     const b = G.ball; if (!b || b.state === "held" && !b.holder) return;
     const x = sx(b.x), y = sy(b.y);
     if (b.state === "air") { ctx.fillStyle = "rgba(0,0,0,.35)"; ctx.fillRect(x - 2, y - 1, 4, 2); }
-    const z = b.state === "air" ? b.z * 3 : 7;
+    const z = b.state === "air" ? b.z * 3 : 12;
     ctx.fillStyle = "#7a3f12"; ctx.fillRect(x - 2, y - z - 2, 5, 3);
     ctx.fillStyle = "#fff"; ctx.fillRect(x, y - z - 1, 1, 1);
   }
@@ -130,8 +220,7 @@ const RENDER = (() => {
     text(String(G.score[2]), VW - 72, 7, "#fff", 8, "right"); text(T[2].short, VW - 8, 7, T[2].trim, 8, "right");
     ctx.fillStyle = T[1].color; ctx.fillRect(0, 20, VW / 2, 2); ctx.fillStyle = T[2].color; ctx.fillRect(VW / 2, 20, VW / 2, 2);
     const clock = G.ot ? "OT" : "Q" + G.quarter + " " + Math.floor(G.clock / 60) + ":" + String(Math.floor(G.clock % 60)).padStart(2, "0");
-    text(clock, VW / 2, 7, "#ffb627", 8, "center");
-    // possession dot
+    text(clock, VW / 2, 2, "#ffb627", 8, "center");
     // possession: a little football under the team name
     const px = G.poss === 1 ? 24 : VW - 28;
     ctx.fillStyle = "#7a3f12"; ctx.fillRect(px, 16, 6, 3);
@@ -140,7 +229,7 @@ const RENDER = (() => {
         const ord = ["1ST", "2ND", "3RD", "4TH"][Math.min(G.down, 4) - 1];
         const togo = G.los + G.togo >= 100 ? "GOAL" : (G.togo < 1 ? "INCHES" : String(Math.round(G.togo)));
         const spot = G.los < 50 ? "OWN " + Math.round(G.los) : G.los > 50 ? "OPP " + Math.round(100 - G.los) : "MIDFIELD";
-        text(ord + " & " + togo + " · " + spot, VW / 2, 28, "#f3efe4", 8, "center");
+        text(ord + " & " + togo + " · " + spot, VW / 2, 12, "#f3efe4", 8, "center");
       }
     }
   }
@@ -216,18 +305,23 @@ const RENDER = (() => {
     if (G.phase === "live" && G.play && G.play.type === "pass" && !G.play.thrown) target = G.los + 10;
     camX += (target - camX) * 0.12;
     camX = clamp(camX, -10 + VW / 2 / PX, 110 - VW / 2 / PX);
-    field(G); scrimmageLines(G); playArt(G);
+    // Screen shake on big hits and touchdowns.
+    const sh = G.shake > 0 ? Math.round((Math.random() - 0.5) * G.shake * 14) : 0;
+    ctx.save(); ctx.translate(sh, sh ? Math.round((Math.random() - 0.5) * G.shake * 8) : 0);
+    field(G, time); scrimmageLines(G); playArt(G); goalposts();
     const list = G.players.slice().sort((a, b) => a.y - b.y);
     for (const p of list) player(G, p, time);
+    effects(G);
     // target receiver ring for a human quarterback
     const pl = G.play, car = G.ball && G.ball.state === "held" ? G.ball.holder : null;
     if (pl && pl.type === "pass" && !pl.thrown && car && car.role === "QB" && G.human[G.poss] && G.receivers[G.target]) {
       const r = G.receivers[G.target];
       ctx.strokeStyle = Math.floor(time * 6) % 2 ? "#ffe14a" : "#fff"; ctx.lineWidth = 1;
-      ctx.strokeRect(sx(r.x) - 6, sy(r.y) - 19, 12, 20);
+      ctx.strokeRect(sx(r.x) - 8, sy(r.y) - 26, 16, 27);
     }
     ball(G);
     for (const t of [1, 2]) if (G.human[t] && G.phase !== "kick" && G.phase !== "over") marker(G, G.control[t], t, time);
+    ctx.restore();
     hud(G); kickMeter(G); mashMeter(G); bannerDraw(G); prompts(G);
   }
 
