@@ -22,14 +22,25 @@
 
   function setNet(text, cls) { const n = $("net"); n.textContent = text; n.className = "net " + (cls || ""); }
 
-  function openRoom() {
-    code = NET.newCode();
+  // The room code is saved on this computer and reused, so a phone that scanned once stays attached,
+  // even after the page reloads. If the old code is still being released by the server, retry it for
+  // a little while before giving up and making a new one.
+  let saved = null;
+  try { saved = localStorage.getItem("dadmo-room"); } catch (e) {}
+  function openRoom(tries) {
+    tries = tries || 0;
+    code = (saved && tries < 8) ? saved : NET.newCode();
     peer = new Peer(NET.peerId(code));
-    peer.on("open", () => { showRoom(); setNet("READY · WAITING FOR PHONES", "ok"); });
+    peer.on("open", () => { showRoom(); setNet("READY · WAITING FOR PHONES", "ok"); try { localStorage.setItem("dadmo-room", code); } catch (e) {} saved = code; });
     peer.on("connection", onConn);
-    peer.on("disconnected", () => { setNet("RECONNECTING…", "bad"); peer.reconnect(); });
+    peer.on("disconnected", () => { setNet("RECONNECTING…", "bad"); try { peer.reconnect(); } catch (e) {} });
     peer.on("error", err => {
-      if (err.type === "unavailable-id") { peer.destroy(); openRoom(); return; } // code taken, pick another
+      if (err.type === "unavailable-id") {
+        peer.destroy();
+        if (saved && tries < 8) { setNet("REOPENING ROOM " + saved + "…", ""); setTimeout(() => openRoom(tries + 1), 2500); }
+        else { saved = null; openRoom(99); }
+        return;
+      }
       setNet("LINK ERROR: " + String(err.type || err).toUpperCase(), "bad");
       console.error(err);
     });
@@ -53,6 +64,12 @@
         lastLabels[s] = null; // make sure this phone gets the current labels
         $("slot" + s).classList.add("in");
         $("state" + s).textContent = "READY";
+      } else if (msg.t === "bye") {
+        // A phone left on purpose: free its player slot so another phone can take it.
+        const s = conn._slot;
+        if (s && slots[s] === conn._id) { slots[s] = null; delete conns[conn._id]; inputs[s] = {}; draw(s);
+          $("slot" + s).classList.remove("in"); $("state" + s).textContent = "OPEN · SCAN TO JOIN"; $("lag" + s).textContent = ""; }
+        conn._slot = null; setTimeout(() => conn.close(), 200);
       } else if (msg.t === "in" && conn._slot) {
         inputs[conn._slot] = msg.k || {};
         draw(conn._slot);
@@ -81,6 +98,7 @@
   const lastLabels = {};
   function sendTo(s, msg) { const c = slots[s] && conns[slots[s]]; if (c && c.open) c.send(msg); }
   window.PADS = {
+    code: () => code,
     inputs, connected: s => !!(slots[s] && conns[slots[s]]),
     // Only sends when the labels actually change (and always to a phone that just joined).
     labels(s, L) { const k = JSON.stringify(L); if (lastLabels[s] === k) return; lastLabels[s] = k; sendTo(s, Object.assign({ t: "labels" }, L)); },

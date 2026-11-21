@@ -162,7 +162,7 @@ const RENDER = (() => {
         case "truck": return ["truck", 0];
         case "lunge": return ["lunge", 0];
         case "dive": return ["dive", 0];
-        case "juke": return ["run", Math.floor(k * 4) % 4];
+        case "juke": return ["run", Math.floor(k * 6) % 6];
       }
     }
     if (p.down > 0 || p.lying) return ["down", 0];
@@ -170,8 +170,12 @@ const RENDER = (() => {
     if (G.phase === "dead" && G.celebrate === p.team) return ["celebrate", Math.floor(time * 5 + p.seed) % 2];
     if (G.phase === "presnap" && (p.role === "OL" || p.role === "DL")) return ["stance", 0];
     if (G.phase === "kick" && G.kick.type !== "kickoff" && p.role === "OL") return ["stance", 0];
-    if (Math.hypot(p.vx, p.vy) > 0.6) return ["run", Math.floor(p.stride * (p.burst > 0 ? 1.8 : 1.4)) % 4];
-    return ["idle", 0];
+    if (Math.hypot(p.vx, p.vy) > 0.6) {
+      // Moving opposite to where he's facing = backpedaling (DBs, a QB's drop).
+      if (Math.abs(p.vx) > 0.8 && Math.sign(p.vx) !== (p.face || 1)) return ["backpedal", Math.floor(p.stride * 2.2) % 4];
+      return ["run", Math.floor(p.stride * (p.burst > 0 ? 2.6 : 2.1)) % 6];
+    }
+    return ["idle", Math.floor(time * 1.6 + p.seed * 0.37) % 2];
   }
 
   function player(G, p, time) {
@@ -404,5 +408,19 @@ const RENDER = (() => {
     hud(G); kickMeter(G); mashMeter(G); bannerDraw(G); prompts(G);
   }
 
-  return { init, draw };
+  // Pause screen: dims the field and shows a small menu.
+  function pauseMenu(items, sel, time) {
+    ctx.fillStyle = "rgba(5,10,20,.78)"; ctx.fillRect(0, 0, VW, VH);
+    text("PAUSED", VW / 2, 70, "#ffb627", 20, "center");
+    items.forEach((it, i) => {
+      const y = 120 + i * 24, on = i === sel;
+      if (on) { ctx.fillStyle = "#ffb627"; ctx.fillRect(VW / 2 - 90, y - 5, 180, 18); }
+      text(it, VW / 2, y, on ? "#0e1a2b" : "#f3efe4", 8, "center");
+    });
+    text("UP / DOWN TO CHOOSE · Z OR X TO SELECT · PAUSE TO RESUME", VW / 2, 214, "#9fb1c5", 8, "center");
+    const code = window.PADS && window.PADS.code && window.PADS.code();
+    if (code) text("ROOM " + code + " · PHONES STAY CONNECTED", VW / 2, 236, "#7fd68f", 8, "center");
+  }
+
+  return { init, draw, pauseMenu };
 })();

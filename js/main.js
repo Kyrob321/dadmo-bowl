@@ -5,13 +5,31 @@
   const params = new URLSearchParams(location.search);
   const demo = params.has("demo");
   let mode = "title";
+  // Pause menu: either player can pause (PAUSE on the phone, P / Esc / Enter on the keyboard).
+  const PAUSE_ITEMS = ["RESUME", "RESTART GAME", "QUIT TO TITLE"];
+  const pause = { on: false, sel: 0, by: 1, lastHuman: null };
 
   function start(human) {
     document.body.classList.add("playing");
+    pause.lastHuman = Object.assign({}, human);
     GAME.newGame(human);
-    mode = "game";
+    mode = "game"; pause.on = false;
   }
-  function toTitle() { document.body.classList.remove("playing"); mode = "title"; }
+  function toTitle() { document.body.classList.remove("playing"); mode = "title"; pause.on = false; }
+
+  function pauseStep() {
+    for (const s of [1, 2]) {
+      if (INPUT.pressed(s, "start")) { pause.on = false; return; }
+      if (INPUT.pressed(s, "up")) pause.sel = (pause.sel + PAUSE_ITEMS.length - 1) % PAUSE_ITEMS.length;
+      if (INPUT.pressed(s, "down")) pause.sel = (pause.sel + 1) % PAUSE_ITEMS.length;
+      if (INPUT.pressed(s, "z") || INPUT.pressed(s, "x")) {
+        const pick = PAUSE_ITEMS[pause.sel]; pause.on = false;
+        if (pick === "RESTART GAME") start(Object.assign({}, pause.lastHuman, { 2: GAME.state.human[2] }));
+        else if (pick === "QUIT TO TITLE") toTitle();
+        return;
+      }
+    }
+  }
 
   // What each phone button does right now, for player t. Directions are from the TV's point of view
   // (offense always attacks to the right), so "right" is forward for whoever has the ball.
@@ -22,6 +40,7 @@
     if (!G.human[t]) return L;
     const offense = t === G.poss, car = G.ball && G.ball.state === "held" ? G.ball.holder : null;
     const move = { up: "MOVE", down: "MOVE", left: "MOVE", right: "MOVE" };
+    if (pause.on) return Object.assign(L, { x: "SELECT", z: "SELECT", up: "UP", down: "DOWN" });
     if (G.mash) return G.mash.pause > 0 ? Object.assign(L, { x: "READY", z: "READY" }) : Object.assign(L, { x: "MASH!", z: "MASH!" });
     switch (G.phase) {
       case "presnap":
@@ -58,6 +77,8 @@
       return;
     }
     const G = GAME.state;
+    if (pause.on) return pauseStep();
+    if (!demo && (INPUT.pressed(1, "start") || INPUT.pressed(2, "start"))) { pause.on = true; pause.sel = 0; return; }
     // Player 2 can take over from the computer mid-game only by connecting a phone.
     if (!demo && !G.human[2] && window.PADS && window.PADS.connected(2)) G.human[2] = true;
     GAME.update(dt);
@@ -71,11 +92,11 @@
   function frame(now) {
     acc += Math.min(0.1, (now - last) / 1000); last = now;
     while (acc >= 1 / 60) { step(1 / 60); acc -= 1 / 60; }
-    if (mode === "game") RENDER.draw(GAME.state, now / 1000);
+    if (mode === "game") { RENDER.draw(GAME.state, now / 1000); if (pause.on) RENDER.pauseMenu(PAUSE_ITEMS, pause.sel, now / 1000); }
     requestAnimationFrame(frame);
   }
   const go = () => requestAnimationFrame(frame);
   if (document.fonts && document.fonts.load) document.fonts.load('8px "Press Start 2P"').then(go, go); else go();
 
-  window.DADMO = { start, toTitle };
+  window.DADMO = { start, toTitle, pause };
 })();

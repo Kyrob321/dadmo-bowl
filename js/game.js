@@ -109,6 +109,7 @@ const GAME = (() => {
     for (let i = 0; i < 8; i++) G.players.push(makePlayer(recv, "def", { role: "LB", x: 50 + (i % 2) * 8, y: 6 + i * 5.9 }));
     G.players.push(makePlayer(recv, "def", { role: "S", x: 92, y: C }));
     G.ball = { state: "tee", holder: null, x: 35, y: C, z: 0 };
+    G.players.forEach(p => { p.face = p.team === kickTeam ? 1 : -1; });
     G.control = { [kickTeam]: G.players[0], [recv]: G.players[G.players.length - 1] };
   }
 
@@ -118,6 +119,7 @@ const GAME = (() => {
     const f = PLAYS.formation(G.los);
     const offT = G.poss, defT = other(offT);
     G.players = f.off.map(s => makePlayer(offT, "off", s)).concat(f.def.map(s => makePlayer(defT, "def", s)));
+    G.players.forEach(p => { p.face = p.side === "def" ? -1 : 1; });
     G.plans = PLAYS.makePlans(G.los, G.players.filter(p => p.side === "off"));
     G.ball = { state: "held", holder: qb(), x: G.los - 1.6, y: C, z: 1 };
     G.control = { [offT]: qb(), [defT]: G.players.find(p => p.side === "def" && p.role === "LB") };
@@ -167,6 +169,7 @@ const GAME = (() => {
     for (let i = 0; i < 8; i++) G.players.push(makePlayer(recvTeam, "off", { role: "OL", x: rx + rnd(6, 13), y: 5 + i * 6.1 }));
     for (let i = 0; i < 9; i++) G.players.push(makePlayer(kickTeam, "def", { role: "CV", x: rx + rnd(15, 24), y: 4 + i * 5.7 }));
     G.ball = { state: "held", holder: kr, x: kr.x, y: kr.y, z: 1 };
+    G.players.forEach(p => { p.face = p.team === recvTeam ? 1 : -1; });
     G.control = { [recvTeam]: kr, [kickTeam]: nearestTo(kickTeam, kr) };
   }
 
@@ -345,7 +348,9 @@ const GAME = (() => {
         anim(p, "lunge", 0.3);
       }
     }
-    if (d.any) { setVel(p, d.dx, d.dy, 1.05); p.manual = true; }
+    // Full control: your defender only moves when you press the D-pad.
+    if (d.any) setVel(p, d.dx, d.dy, 1.05); else { p.vx = p.vy = 0; }
+    p.manual = true;
   }
 
   // ---------- AI ----------
@@ -502,6 +507,18 @@ const GAME = (() => {
     const i = Math.max(0, h.length / 2 - 1 - delay) * 2;
     const tx = h.length ? h[i] : r.x, ty = h.length ? h[i + 1] : r.y;
     return seek(p, tx + K.COV_CUSHION, ty, 0.97);
+  }
+
+  // Which way a player looks: defenders in coverage keep their eyes on the quarterback (backpedal),
+  // the pocket QB looks downfield, movers face where they're going, and anyone standing still faces the ball.
+  function faceFor(p) {
+    const pl = G.play, b = G.ball, speed = Math.hypot(p.vx, p.vy);
+    if (p.role === "QB" && p.side === "off" && pl && pl.type === "pass" && !pl.thrown && !pl.crossed) return 1;
+    // Cover men backpedal with eyes on the QB, then turn and run once the receiver gets on top of them.
+    if (p.side === "def" && pl && pl.type === "pass" && !pl.thrown && p.role !== "DL" && speed < 5.2) return -1;
+    if (speed > 0.8 && Math.abs(p.vx) > 0.4) return p.vx > 0 ? 1 : -1;
+    if (b) { const bx = b.state === "air" ? b.tx : b.x; if (Math.abs(bx - p.x) > 0.3) return bx > p.x ? 1 : -1; }
+    return p.face || 1;
   }
 
   // ---------- passing ----------
@@ -948,6 +965,7 @@ const GAME = (() => {
       if (p.down > 0) { p.down -= dt; p.vx = p.vy = 0; continue; }
       if (!p.manual) aiMove(p);
       p.stride += Math.hypot(p.vx, p.vy) * dt;
+      p.face = faceFor(p);
       if (p.side === "off" && (p.route || p.hist)) { (p.hist || (p.hist = [])).push(p.x, p.y); if (p.hist.length > 80) p.hist.splice(0, 2); }
       p.x = clamp(p.x + p.vx * dt, -12, 112);
       p.y = clamp(p.y + p.vy * dt, -2, W + 2);

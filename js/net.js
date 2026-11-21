@@ -10,5 +10,5 @@ const NET = {
     return c;
   },
   peerId(code) { return this.PREFIX + code.toUpperCase(); },
-  KEYS: ["up", "down", "left", "right", "x", "z"],
+  KEYS: ["up", "down", "left", "right", "x", "z", "start"],
 };

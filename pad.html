@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/pad.css?v=1795249159">
+<link rel="stylesheet" href="css/pad.css?v=1795249481">
 </head>
 <body>
 <div class="rotate" id="rotate">TURN YOUR PHONE SIDEWAYS</div>
@@ -19,6 +19,7 @@
 <div class="pad" id="pad">
   <header class="bar">
     <span id="who">JOINING…</span>
+    <span class="bar-mid"><span class="pill" data-k="start" id="pauseBtn">❚❚ PAUSE</span><span class="pill leave" id="leaveBtn">LEAVE</span></span>
     <span id="status">CONNECTING</span>
   </header>
 
@@ -39,13 +40,13 @@
 </div>
 
 <div class="join-form" id="joinForm" hidden>
-  <p>ENTER THE ROOM CODE ON THE TV</p>
+  <p id="joinMsg">ENTER THE ROOM CODE ON THE TV</p>
   <input id="codeIn" maxlength="4" autocapitalize="characters" autocomplete="off" spellcheck="false" aria-label="Room code">
   <button id="codeGo" type="button">JOIN</button>
 </div>
 
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-<script src="js/net.js?v=1795249159"></script>
-<script src="js/pad.js?v=1795249159"></script>
+<script src="js/net.js?v=1795249481"></script>
+<script src="js/pad.js?v=1795249481"></script>
 </body>
 </html>

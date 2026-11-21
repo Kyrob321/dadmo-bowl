@@ -1,9 +1,10 @@
 // Merges keyboard, phone pads and test input into one simple state per player.
 // Player 1 keyboard: arrows + Z / X.  Player 2 keyboard: W A S D + G (Z) / F (X).
 const INPUT = (() => {
-  const KEYS = ["up", "down", "left", "right", "x", "z"];
+  const KEYS = ["up", "down", "left", "right", "x", "z", "start"];
   const MAP = {
     ArrowUp: [1, "up"], ArrowDown: [1, "down"], ArrowLeft: [1, "left"], ArrowRight: [1, "right"], KeyZ: [1, "z"], KeyX: [1, "x"],
+    Escape: [1, "start"], KeyP: [1, "start"], Enter: [1, "start"],
     KeyW: [2, "up"], KeyS: [2, "down"], KeyA: [2, "left"], KeyD: [2, "right"], KeyG: [2, "z"], KeyF: [2, "x"],
   };
   const kb = { 1: {}, 2: {} };

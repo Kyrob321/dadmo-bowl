@@ -9,16 +9,31 @@ const SPRITES = (() => {
   // ----- poses -----
   const S = Math.sin, Cs = Math.cos;
   const POSES = {
-    idle: () => ({ hip: [0, -9], neck: [0, -16], head: [1, -20], bk: [[-1, -5], [-2, 0]], fk: [[1, -5], [2, 0]], ba: [[-1, -12], [-1, -9]], fa: [[2, -12], [2, -9]] }),
+    // Athletic ready stance that breathes: knees soft, hands up a little.
+    idle: f => ({ hip: [0, -9 + (f ? 0 : 0)], neck: [0.5, -16 + (f ? 1 : 0)], head: [1.5, -20 + (f ? 1 : 0)],
+      bk: [[-1.5, -5], [-2.5, 0]], fk: [[1.5, -5], [2.5, 0]], ba: [[-1, -12 + (f ? 1 : 0)], [0, -9.5 + (f ? 1 : 0)]], fa: [[2.5, -12 + (f ? 1 : 0)], [3.5, -9.5 + (f ? 1 : 0)]] }),
+    // Six-frame sprint: forward lean, knee drive on the swing leg, heel kick on the recovery leg, arms pumping opposite.
     run: f => {
-      const a = f * Math.PI / 2, s = S(a), c = Cs(a), bob = f % 2 ? -1 : 0;
-      return {
-        hip: [0, -9 + bob], neck: [2, -16 + bob], head: [3, -20 + bob],
-        fk: [[1 + 2.5 * s, -5 + Math.max(0, c) * 1.5 + bob], [1 + 4.5 * s, -Math.max(0, c) * 3]],
-        bk: [[1 - 2.5 * s, -5 + Math.max(0, -c) * 1.5 + bob], [1 - 4.5 * s, -Math.max(0, -c) * 3]],
-        fa: [[1 - 2.5 * s, -12 + bob], [2 - 3.5 * s, -10 + bob]],
-        ba: [[1 + 2.5 * s, -12 + bob], [2 + 3.5 * s, -10 + bob]],
+      const a = f * Math.PI / 3, s = S(a), bob = Math.abs(Cs(a)) > 0.7 ? 0 : -1;
+      const leg = ph => {
+        const sw = S(ph), rec = Math.max(0, Cs(ph));
+        const knee = [1 + 3 * sw, -5 + bob - (sw > 0 ? 2 * rec : 0)];
+        const foot = sw > 0 ? [1 + 4.5 * sw - 1.5 * rec, -3 * rec] : [1 + 4 * sw - 1.5 * rec, -3.5 * rec];
+        return [knee, foot];
       };
+      return {
+        hip: [0, -9 + bob], neck: [2.5, -16 + bob], head: [4, -20 + bob],
+        fk: leg(a), bk: leg(a + Math.PI),
+        fa: [[1 - 2.2 * s, -12.5 + bob], [3 - 2.8 * s, -11 + bob - 1.5 * Math.max(0, -s)]],
+        ba: [[1 + 2.2 * s, -12.5 + bob], [3 + 2.8 * s, -11 + bob - 1.5 * Math.max(0, s)]],
+      };
+    },
+    // Backpedal: upright, short choppy steps, eyes and chest still facing the play.
+    backpedal: f => {
+      const a = f * Math.PI / 2, s = S(a), bob = f % 2 ? -1 : 0;
+      return { hip: [0, -9 + bob], neck: [1, -16 + bob], head: [2, -20 + bob],
+        fk: [[1 + 1.5 * s, -5 + bob], [1.5 + 2.2 * s, -Math.max(0, Cs(a)) * 1.5]], bk: [[-1 - 1.5 * s, -5 + bob], [-1.5 - 2.2 * s, -Math.max(0, -Cs(a)) * 1.5]],
+        fa: [[2.5, -12 + bob], [4, -10 + bob]], ba: [[-0.5, -12 + bob], [1, -10 + bob]] };
     },
     stance: () => ({ hip: [-2, -7], neck: [3, -10], head: [5, -12], bk: [[-4, -3], [-4, 0]], fk: [[1, -3], [0, 0]], fa: [[4, -6], [4, -1]], ba: [[2, -8], [1, -6]] }),
     throw: f => [

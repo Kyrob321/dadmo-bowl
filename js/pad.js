@@ -26,7 +26,7 @@
         if (err.type === "peer-unavailable") setStatus("ROOM NOT FOUND", "bad");
         else setStatus("LINK ERROR", "bad");
         console.error(err);
-        retryTimer = setTimeout(connect, 2500);
+        if (!left) retryTimer = setTimeout(connect, 2500);
       });
       peer.on("disconnected", () => { try { peer.reconnect(); } catch (e) {} });
     } else dial();
@@ -60,7 +60,7 @@
         setStatus("GAME IS FULL", "bad");
       }
     });
-    conn.on("close", () => { clearInterval(pingTimer); setStatus("DROPPED · RETRYING", "bad"); retryTimer = setTimeout(connect, 1500); });
+    conn.on("close", () => { clearInterval(pingTimer); if (left) return; setStatus("DROPPED · RETRYING", "bad"); retryTimer = setTimeout(connect, 1500); });
   }
 
   function sendState() { send({ t: "in", k: Object.assign({}, state) }); }
@@ -82,9 +82,25 @@
     document.querySelectorAll("[data-k]").forEach(el => el.classList.toggle("on", state[el.dataset.k]));
     if (changed) sendState();
   }
+  // LEAVE: tap once to arm, tap again within 2 seconds to leave. Frees your player slot on the TV.
+  let leaveArmed = 0;
+  function leave() {
+    if (Date.now() - leaveArmed > 2000) { leaveArmed = Date.now(); $("leaveBtn").classList.add("armed"); $("leaveBtn").textContent = "TAP TO CONFIRM";
+      setTimeout(() => { if (Date.now() - leaveArmed >= 2000) { $("leaveBtn").classList.remove("armed"); $("leaveBtn").textContent = "LEAVE"; } }, 2100); return; }
+    send({ t: "bye" });
+    try { localStorage.removeItem("dadmo-pad-room"); } catch (e) {}
+    left = true; clearInterval(pingTimer); clearTimeout(retryTimer);
+    setTimeout(() => { try { peer && peer.destroy(); } catch (e) {} }, 300);
+    $("joinMsg").textContent = "YOU LEFT THE GAME. SCAN THE TV AGAIN OR ENTER THE CODE TO REJOIN.";
+    $("joinForm").hidden = false;
+    $("codeGo").onclick = () => { left = false; peer = null; if (!startWith($("codeIn").value)) $("codeIn").focus(); };
+  }
+  let left = false;
+
   function onTouch(e) {
     e.preventDefault();
     wake();
+    if (e.type === "touchstart") for (const t of e.changedTouches) { const el = document.elementFromPoint(t.clientX, t.clientY); if (el && el.closest("#leaveBtn")) { leave(); return; } }
     for (const t of e.changedTouches) {
       if (e.type === "touchend" || e.type === "touchcancel") touchKey.delete(t.identifier);
       else {
@@ -99,7 +115,7 @@
 
   // Mouse support, for testing on a computer.
   let mouseDown = false;
-  pad.addEventListener("mousedown", e => { mouseDown = true; const k = keyAt(e.clientX, e.clientY); if (k) touchKey.set("m", k); refresh(); });
+  pad.addEventListener("mousedown", e => { if (e.target.closest("#leaveBtn")) { leave(); return; } mouseDown = true; const k = keyAt(e.clientX, e.clientY); if (k) touchKey.set("m", k); refresh(); });
   addEventListener("mouseup", () => { if (!mouseDown) return; mouseDown = false; touchKey.delete("m"); refresh(); });
 
   // Keep the phone screen awake while playing (iOS 18.4+ in home-screen mode).
@@ -112,12 +128,14 @@
   });
 
   // Room code from the QR link, or typed in.
-  room = (new URLSearchParams(location.search).get("room") || "").toUpperCase().replace(/[^A-Z]/g, "");
+  // Remember the room: once you've scanned, opening the controller again (even from the home screen) rejoins.
+  let savedRoom = null; try { savedRoom = localStorage.getItem("dadmo-pad-room"); } catch (e) {}
+  room = (new URLSearchParams(location.search).get("room") || savedRoom || "").toUpperCase().replace(/[^A-Z]/g, "");
   function startWith(c) {
     room = c.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 4);
     if (room.length !== 4) return false;
     $("joinForm").hidden = true;
-    try { history.replaceState(null, "", "?room=" + room); } catch (e) {}
+    try { history.replaceState(null, "", "?room=" + room); localStorage.setItem("dadmo-pad-room", room); } catch (e) {}
     connect();
     return true;
   }
