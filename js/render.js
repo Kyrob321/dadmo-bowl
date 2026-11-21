@@ -151,6 +151,7 @@ const RENDER = (() => {
   function poseFor(G, p, time) {
     if (G.mash && (p === G.mash.car || p === G.mash.def)) return ["grapple", Math.floor(time * 10) % 2];
     if (p.dive > 0) return ["dive", 0];
+    if (p.lungeT > 0) return ["lunge", 0];
     if (p.anim && G.time - p.anim.t0 < p.anim.dur) {
       const k = (G.time - p.anim.t0) / p.anim.dur;
       switch (p.anim.name) {

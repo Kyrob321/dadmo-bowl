@@ -33,5 +33,7 @@ const CFG = {
     CPU_RUN: 0.5, QB_REACT: 0.47, DEF_READ: 0.3, DEF_BREAK: 6, DEF_TRAIL: 0.92, COV_LAG: 0.3, COV_CUSHION: 1.0, LB_EXTRA_LAG: 0.15, LB_CUSHION: 1.6, RUN_BLOCK: 3.8, LB_READ: 1.15, RUN_HOLE: 1.3, QB_SHORT: 12, QB_SHORT_BONUS: 2.0, QB_HOLD_MIN: 1.0, QB_HOLD_MAX: 2.3, CPU_MOVE: 0.55, CPU_Q_MEAN: -0.15, CPU_Q_SD: 0.45,
     // Mash battle: computer presses per second
     CPU_MASH: 6.0,
+    // Tackle assist for the human defender
+    LUNGE_TIME: 0.22, LUNGE_SPEED: 1.7, DIVE_RANGE: 2.0, DIVE_Q: 0.25, ASSIST_RANGE: 7, ASSIST: 0.45, HUMAN_REP_RANGE: 2.1,
   },
 };

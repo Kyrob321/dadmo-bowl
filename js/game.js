@@ -345,13 +345,42 @@ const GAME = (() => {
       } else {
         const rep = G.rep;
         if (rep && rep.def === p && rep.defT == null) {
+          // In a tackle rep: the timed press, plus a lunge that closes the last yard or so (tackle assist).
           rep.defT = pl.t; const v = verdict(rep.defT, rep.ideal, rep.wDef); rep.defFb = v; pop(v[0], p.x, p.y, v[1]);
-        } else G.lastZ[team] = pl.t; // pressed before the rep started: counts if it starts within 0.3s
-        anim(p, "lunge", 0.3);
+          p.lungeT = K.LUNGE_TIME; anim(p, "lunge", 0.3);
+        } else if (car && !rep && dist(p, car) < K.DIVE_RANGE && p.repCd <= 0) {
+          // Close but no rep yet: a diving tackle. It counts, but without perfect rhythm.
+          G.rep = { car, def: p, t0: pl.t, tc: pl.t + 0.2, ideal: pl.t + 0.08, wOff: windowFor(skill(car)), wDef: windowFor(p.r.tkl),
+            offT: null, defT: pl.t, defQ: K.DIVE_Q, move: null, jdir: 0, dive: true };
+          if (!G.human[car.team]) G.rep.cpuMove = Math.random() < K.CPU_MOVE ? bestMove(car, p) : null;
+          p.lungeT = K.LUNGE_TIME; anim(p, "lunge", 0.3); pop("DIVE!", p.x, p.y, "#ffb627");
+        } else if (car && !rep) {
+          if (G.time - (G.lastFar || 0) > 0.8) { pop("TOO FAR", p.x, p.y, "#ef5a45"); G.lastFar = G.time; ST().myTooFar = (ST().myTooFar || 0) + 1; }
+          G.lastZ[team] = pl.t; // pressed just before a rep starts still counts (it'll be early)
+        }
       }
     }
-    // Full control: your defender only moves when you press the D-pad.
-    if (d.any) setVel(p, d.dx, d.dy, 1.05); else { p.vx = p.vy = 0; }
+    // Tackle assist: the lunge drives straight at the ball carrier...
+    if (p.lungeT > 0 && car) {
+      const l = dist(p, car) || 1;
+      setVel(p, (car.x - p.x) / l, (car.y - p.y) / l, K.LUNGE_SPEED); p.manual = true; return;
+    }
+    // ...and when you're steering roughly at him, your angle gets bent toward where he's going.
+    // Otherwise it's full control: your defender only moves when you press.
+    if (d.any) {
+      let dx = d.dx, dy = d.dy;
+      if (car && dist(p, car) < K.ASSIST_RANGE) {
+        const lead = Math.min(dist(p, car) / p.spd, 0.8);
+        const tx = car.x + car.vx * lead - p.x, ty = car.y + car.vy * lead - p.y, tl = Math.hypot(tx, ty) || 1;
+        const m = Math.hypot(dx, dy) || 1;
+        if ((dx * tx + dy * ty) / (m * tl) > 0.4) { // aiming within about 65 degrees of him
+          const w = K.ASSIST;
+          dx = dx / m * (1 - w) + tx / tl * w; dy = dy / m * (1 - w) + ty / tl * w;
+          const n = Math.hypot(dx, dy) || 1; dx = dx / n * m; dy = dy / n * m;
+        }
+      }
+      setVel(p, dx, dy, 1.05);
+    } else { p.vx = p.vy = 0; }
     p.manual = true;
   }
 
@@ -687,7 +716,8 @@ const GAME = (() => {
       if (G.rep) continue;
       if (p.repCd > 0) continue;
       const d = dist(p, car);
-      if (d > 2.4) continue;
+      const mine = G.human[p.team] && G.control[p.team] === p;
+      if (d > (mine ? K.HUMAN_REP_RANGE : 2.4)) continue;
       const rvx = car.vx - p.vx, rvy = car.vy - p.vy;
       const closing = -((car.x - p.x) * rvx + (car.y - p.y) * rvy) / (d || 1);
       if (closing < 0.8 && d > 1.0) continue;
@@ -726,9 +756,12 @@ const GAME = (() => {
     const car = rep.car, def = rep.def;
     if (carrier() !== car || def.down > 0) { G.rep = null; return; }
     // Contact has to actually happen: give the defender a moment to close, otherwise he whiffed on air.
-    if (dist(def, car) > K.TK_REACH) {
+    const reach = def.lungeT > 0 || rep.defT != null ? K.TK_REACH + 0.9 : K.TK_REACH;
+    if (dist(def, car) > reach) {
       if (pl.t < rep.tc + 0.3) return;
-      G.rep = null; def.repCd = 0.5; return;
+      G.rep = null; def.repCd = 0.5;
+      if (G.human[def.team] && G.control[def.team] === def) { pop("MISSED!", def.x, def.y, "#ef5a45"); ST().myWhiffs = (ST().myWhiffs || 0) + 1; }
+      return;
     }
     G.rep = null;
     const humanOff = G.human[car.team] && G.control[car.team] === car;
@@ -739,7 +772,7 @@ const GAME = (() => {
     else { move = rep.cpuMove; qo = move ? cpuQ(car.r[move]) : K.NO_MOVE_Q; if (move) anim(car, move === "juke" ? "juke" : move, 0.35); }
     const rOff = move ? car.r[move] : car.r.bt;
     // defense timing
-    const qd = humanDef ? (rep.defT != null ? quality(rep.defT, rep.ideal, rep.wDef) : -0.5) : cpuQ(def.r.tkl);
+    const qd = humanDef ? (rep.defQ != null ? rep.defQ : rep.defT != null ? quality(rep.defT, rep.ideal, rep.wDef) : -0.5) : cpuQ(def.r.tkl);
     // gang tackles: a second defender right there helps
     const help = G.players.some(o => o !== def && o.team === def.team && o.down <= 0 && o.engaged <= 0 && dist(o, car) < 1.3) ? -0.35 : 0;
     // Landing in the green earns an extra bonus on top of the timing difference.
@@ -747,6 +780,7 @@ const GAME = (() => {
     let s = K.TK_BIAS + K.TK_TIMING * (qo - qd) + green + K.TK_RATING * (rOff - def.r.tkl) / 30 + moveBonus(move, car, def) + help + gauss() * K.TK_SIGMA;
     s = clamp(Math.round(s * 10) / 10, -2, 2);
     ST().tackleReps++; ST().repScores.push(s);
+    if (humanDef) { ST().myReps = (ST().myReps || 0) + 1; if (s <= -0.2) ST().myTackles = (ST().myTackles || 0) + 1; }
     ST()["repsVs" + car.team] = (ST()["repsVs" + car.team] || 0) + 1;
     if (s >= 0.2) ST()["brokeBy" + car.team] = (ST()["brokeBy" + car.team] || 0) + 1;
     def.repCd = 0.6;
@@ -960,7 +994,7 @@ const GAME = (() => {
     if (G.mash) return updateMash(dt);
     for (const p of G.players) {
       p.manual = false;
-      for (const k of ["engaged", "blockCd", "burst", "burstCd", "jump", "slowT", "cut", "repCd"]) if (p[k] > 0) p[k] -= dt;
+      for (const k of ["engaged", "blockCd", "burst", "burstCd", "jump", "slowT", "cut", "repCd", "lungeT"]) if (p[k] > 0) p[k] -= dt;
     }
     controls(G.poss); controls(other(G.poss));
     for (const p of G.players) {
