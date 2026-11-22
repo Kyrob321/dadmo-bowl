@@ -288,5 +288,18 @@
   const go = () => requestAnimationFrame(frame);
   if (document.fonts && document.fonts.load) document.fonts.load('8px "Press Start 2P"').then(go, go); else go();
 
+  // Keep the laptop screen on: phones don't count as "using the computer", so without this the screen
+  // dims and sleeps mid-game. Asked for at load and again on any key/click (some browsers need one),
+  // and again whenever the page comes back into view (the lock drops when the tab is hidden).
+  let wakeLock = null;
+  async function stayAwake() {
+    if (wakeLock || !("wakeLock" in navigator) || document.visibilityState !== "visible") return;
+    try { wakeLock = await navigator.wakeLock.request("screen"); wakeLock.addEventListener("release", () => { wakeLock = null; }); } catch (e) {}
+  }
+  stayAwake();
+  addEventListener("keydown", stayAwake); addEventListener("pointerdown", stayAwake);
+  document.addEventListener("visibilitychange", stayAwake);
+  setInterval(stayAwake, 30000); // re-ask if the system dropped it (e.g. after the lid was closed)
+
   window.DADMO = { tick, start, toTitle, pause, openSelect, SEL, VS, UNLOCK, get mode() { return mode; } };
 })();
