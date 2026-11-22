@@ -85,7 +85,11 @@
     box.innerHTML = h;
   }
 
-  function sendState() { send({ t: "in", k: Object.assign({}, state, { ax: stick.ax, ay: stick.ay }) }); }
+  // Messages can get lost or arrive out of order on the fast (unreliable) link, so each one is numbered
+  // and the latest state is sent again a few times a second; the TV ignores anything older than what it has.
+  let seq = 0, lastSend = 0;
+  function sendState() { lastSend = performance.now(); send({ t: "in", q: ++seq, k: Object.assign({}, state, { ax: stick.ax, ay: stick.ay }) }); }
+  setInterval(() => { if (performance.now() - lastSend > 120) sendState(); }, 150);
 
   // --- Joystick (shown on defense): an analog stick; how far you push = how fast you go.
   const stick = { on: false, id: null, ax: 0, ay: 0, lastSent: 0 };
@@ -118,20 +122,46 @@
 
   // --- Touch handling: every finger is tracked, so you can hold a direction and press a button.
   const touchKey = new Map(); // touch id -> key
+  // Generous tap zones: a touch anywhere near the D-pad picks the direction it leans toward, and a touch
+  // anywhere on the right side goes to the nearest of X and Z. Only PAUSE and LEAVE need an exact hit.
   function keyAt(x, y) {
     const el = document.elementFromPoint(x, y);
-    const k = el && el.closest("[data-k]");
-    return k ? k.dataset.k : null;
+    const pill = el && el.closest(".pill[data-k]");
+    if (pill) return pill.dataset.k;
+    if (el && el.closest(".bar, .join-form")) return null;
+    const dp = $("dpad");
+    if (!dp.hidden) {
+      const r = dp.getBoundingClientRect(), reach = r.width * 0.45;
+      if (x > r.left - reach && x < r.right + reach && y > r.top - reach && y < r.bottom + reach) {
+        const dx = x - (r.left + r.width / 2), dy = y - (r.top + r.height / 2);
+        if (Math.hypot(dx, dy) < r.width * 0.1) return null; // dead center: no direction
+        return Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? "left" : "right") : (dy < 0 ? "up" : "down");
+      }
+    }
+    let best = null, bd = Infinity, size = 0;
+    for (const b of document.querySelectorAll(".b[data-k]")) {
+      const r = b.getBoundingClientRect(), w = b.offsetWidth; // offsetWidth: the real size (the row is tilted)
+      const d = Math.hypot(x - (r.left + r.width / 2), y - (r.top + r.height / 2)) - w / 2;
+      if (d < bd) { bd = d; best = b.dataset.k; size = w; }
+    }
+    return bd < Math.max(50, size * 0.5) ? best : null; // reach: about half a button past its edge
   }
+  // A quick tap still counts: every press stays down at least MIN_HOLD ms, so the TV (60 frames a second)
+  // always sees it, even if the finger lifts right away.
+  const MIN_HOLD = 90, pressAt = {};
+  let holdTimer = null;
   function refresh() {
-    const held = new Set(touchKey.values());
-    let changed = false;
+    const held = new Set(touchKey.values()), now = performance.now();
+    let changed = false, wait = 0;
     NET.KEYS.forEach(k => {
       if (stick.on && stick.id !== null && ["up", "down", "left", "right"].includes(k)) return; // the stick owns directions
-      const on = held.has(k);
+      let on = held.has(k);
+      if (on && !state[k]) pressAt[k] = now;
+      if (!on && state[k] && now - pressAt[k] < MIN_HOLD) { on = true; wait = Math.max(wait, MIN_HOLD - (now - pressAt[k])); }
       if (state[k] !== on) { state[k] = on; changed = true; }
     });
-    document.querySelectorAll("[data-k]").forEach(el => el.classList.toggle("on", state[el.dataset.k]));
+    if (wait) { clearTimeout(holdTimer); holdTimer = setTimeout(refresh, wait + 2); }
+    document.querySelectorAll("[data-k]").forEach(el => el.classList.toggle("on", !!state[el.dataset.k]));
     if (changed) sendState();
   }
   // LEAVE: tap once to arm, tap again within 2 seconds to leave. Frees your player slot on the TV.
