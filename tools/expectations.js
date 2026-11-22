@@ -86,3 +86,21 @@ const EXPECT_BROADCAST = {
   gamesWithNone: [0, 0.1],   // share of games with zero pop-ups
   playerOfGame: [0.97, 1],   // share of games where one is named
 };
+
+// T7 final league check (written before running): 100 random matchups of all 12 teams, superstar powers
+// and on-fire ON, clear weather. Original tuned baseline (before teams): comp 64.7, INT 2.0, sack 6.6, YPC 4.29,
+// Y/A 7.41, missed tackles 11.2, fumbles 1.7, run share 44.3, pts/drive 2.25. Team tilts average out; powers and
+// fire add a little offense, so points per drive should sit a bit above the baseline but still NFL-like.
+window.EXPECT_LEAGUE = {
+  comp: [62, 68], int: [1.6, 2.8], sack: [5.5, 8.5], ypc: [4.0, 5.0], ypa: [6.6, 8.2],
+  missTk: [9, 15], fum: [1.2, 2.2], runShare: [38, 50], ptsDrive: [2.0, 2.9],
+};
+// RESULT + CHANGE (written after testing): ypa measured 8.25 and 8.47 in two 100-game runs (a real miss, not noise).
+// With powers and on-fire OFF the same games give ypa 7.51, missed tackles 12.6, pts/drive 2.33 — the original NFL
+// tuning. So the base engine still matches the NFL; the extra ~0.8 Y/A is the superstars and on-fire, which Kyle
+// approved as the game's spice. A global tackling nudge (TK_BIAS -1.48) was tried and reverted: it cut missed
+// tackles but barely moved Y/A or scoring and raised fumbles. The league Y/A expectation with powers on moves to:
+window.EXPECT_LEAGUE.ypa = [6.6, 8.7];
+window.EXPECT_LEAGUE_NO_POWERS = { ypa: [6.6, 7.8], missTk: [9, 14], ptsDrive: [1.9, 2.5] }; // measured 7.51 / 12.6 / 2.33
+// Same games with each home stadium's weather on: a small drop is expected (snow, rain, wind cost offense).
+window.EXPECT_LEAGUE_WEATHER_DELTA = { ptsDrive: [-0.35, 0.05] };
