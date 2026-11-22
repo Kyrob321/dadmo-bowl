@@ -11,6 +11,8 @@ const INPUT = (() => {
   const virt = { 1: {}, 2: {} };
   const used = { 1: false, 2: false };
   let cur = { 1: {}, 2: {} }, prev = { 1: {}, 2: {} };
+  // Phone press counters: a tap the TV never saw "down" (too quick, or a lost message) still counts once.
+  const lastC = { 1: {}, 2: {} }, tap = { 1: {}, 2: {} };
 
   addEventListener("keydown", e => {
     const m = MAP[e.code]; if (!m) return;
@@ -25,6 +27,12 @@ const INPUT = (() => {
     for (const s of [1, 2]) {
       const pad = (window.PADS && window.PADS.inputs[s]) || {};
       for (const k of KEYS) cur[s][k] = !!(kb[s][k] || pad[k] || virt[s][k]);
+      tap[s] = {};
+      if (pad.c) for (const k of KEYS) {
+        const n = pad.c[k] || 0, was = lastC[s][k];
+        if (was != null && n > was && !(cur[s][k] && !prev[s][k])) tap[s][k] = true;
+        lastC[s][k] = n;
+      }
       const ax = pad.ax || virt[s].ax || 0, ay = pad.ay || virt[s].ay || 0;
       cur[s].ax = ax; cur[s].ay = ay;
     }
@@ -34,8 +42,8 @@ const INPUT = (() => {
     poll,
     held: (s, k) => !!cur[s][k],
     kbHeld: (s, k) => !!kb[s][k], // the laptop keyboard only (developer shortcuts)
-    pressed: (s, k) => !!cur[s][k] && !prev[s][k],
-    anyPressed: s => KEYS.some(k => cur[s][k] && !prev[s][k]),
+    pressed: (s, k) => (!!cur[s][k] && !prev[s][k]) || !!tap[s][k],
+    anyPressed: s => KEYS.some(k => (cur[s][k] && !prev[s][k]) || tap[s][k]),
     dir(s) {
       // Phone joystick: analog direction, and a light push means a slower step.
       const ax = cur[s].ax || 0, ay = cur[s].ay || 0, m = Math.hypot(ax, ay);

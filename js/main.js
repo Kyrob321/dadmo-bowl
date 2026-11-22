@@ -252,12 +252,12 @@
     // Broadcast graphics: a milestone check after each play; off the screen once the ball is snapped.
     BROADCAST.update(G, dt);
     if (G.phase === "dead" && lastPhase === "live") BROADCAST.afterPlay(G);
-    if (G.phase === "live" && G.lower && (G.lower.kicker !== "TONIGHT" || G.lower.t > 1.2)) G.lower = null;
+    if (G.phase === "live" && G.lower && G.lower.t > 2.2) G.lower = null; // always readable for at least ~2 seconds
     lastPhase = G.phase;
     if (!demo && G.plays !== lastPlays) { lastPlays = G.plays; PROGRESS.onPlay(G); }
     if (!demo && !wasOver && G.phase === "over") {
+      if (G.human[1] || G.human[2]) BROADCAST.record(G); // first, so the after-game backup includes it
       UNLOCK.id = PROGRESS.onGameOver(G); UNLOCK.t = 0;
-      if (G.human[1] || G.human[2]) BROADCAST.record(G);
     }
     if (!wasOver && G.phase === "over") BROADCAST.final(G);
     if (G.phase === "over" && G.overT > 2.5) {

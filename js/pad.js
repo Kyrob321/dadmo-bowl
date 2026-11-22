@@ -88,7 +88,9 @@
   // Messages can get lost or arrive out of order on the fast (unreliable) link, so each one is numbered
   // and the latest state is sent again a few times a second; the TV ignores anything older than what it has.
   let seq = 0, lastSend = 0;
-  function sendState() { lastSend = performance.now(); send({ t: "in", q: ++seq, k: Object.assign({}, state, { ax: stick.ax, ay: stick.ay }) }); }
+  // c = how many times each button has been pressed, so the TV can count a tap even if it never saw it "down".
+  const presses = {};
+  function sendState() { lastSend = performance.now(); send({ t: "in", q: ++seq, k: Object.assign({}, state, { ax: stick.ax, ay: stick.ay, c: Object.assign({}, presses) }) }); }
   setInterval(() => { if (performance.now() - lastSend > 120) sendState(); }, 150);
 
   // --- Joystick (shown on defense): an analog stick; how far you push = how fast you go.
@@ -97,6 +99,7 @@
     if (stick.on === on) return;
     stick.on = on; $("stick").hidden = !on; $("dpad").hidden = on;
     stick.id = null; stick.ax = stick.ay = 0; $("knob").style.transform = ""; $("stick").classList.remove("on");
+    state.up = state.down = state.left = state.right = false;
     sendState();
   }
   function stickMove(x, y) {
@@ -156,7 +159,7 @@
     NET.KEYS.forEach(k => {
       if (stick.on && stick.id !== null && ["up", "down", "left", "right"].includes(k)) return; // the stick owns directions
       let on = held.has(k);
-      if (on && !state[k]) pressAt[k] = now;
+      if (on && !state[k]) { pressAt[k] = now; presses[k] = (presses[k] || 0) + 1; }
       if (!on && state[k] && now - pressAt[k] < MIN_HOLD) { on = true; wait = Math.max(wait, MIN_HOLD - (now - pressAt[k])); }
       if (state[k] !== on) { state[k] = on; changed = true; }
     });
@@ -182,10 +185,14 @@
   function onTouch(e) {
     e.preventDefault();
     wake();
+    // A finger the phone no longer reports (a missed lift) can't keep a button held.
+    const live = new Set([...e.touches].map(t => t.identifier));
+    for (const id of [...touchKey.keys()]) if (id !== "m" && !live.has(id)) touchKey.delete(id);
+    if (stick.id !== null && stick.id !== "m" && !live.has(stick.id) && e.type !== "touchend" && e.type !== "touchcancel") stickRelease();
     if (e.type === "touchstart") for (const t of e.changedTouches) { const el = document.elementFromPoint(t.clientX, t.clientY); if (el && el.closest("#leaveBtn")) { leave(); return; } }
     for (const t of e.changedTouches) {
-      if (stick.on) {
-        if (e.type === "touchstart" && stick.id === null) { const el = document.elementFromPoint(t.clientX, t.clientY); if (el && el.closest("#stick")) { stick.id = t.identifier; stickMove(t.clientX, t.clientY); continue; } }
+      if (stick.on) { // on defense, a touch anywhere on the left side grabs the stick
+        if (e.type === "touchstart" && stick.id === null) { const el = document.elementFromPoint(t.clientX, t.clientY); if ((el && el.closest("#stick")) || (t.clientX < innerWidth * 0.42 && !(el && el.closest(".bar")))) { stick.id = t.identifier; stickMove(t.clientX, t.clientY); continue; } }
         if (t.identifier === stick.id) { if (e.type === "touchend" || e.type === "touchcancel") stickRelease(); else stickMove(t.clientX, t.clientY); continue; }
       }
       if (e.type === "touchend" || e.type === "touchcancel") touchKey.delete(t.identifier);
@@ -213,6 +220,7 @@
     try { wakeLock = await navigator.wakeLock.request("screen"); wakeLock.addEventListener("release", () => wakeLock = null); } catch (e) {}
   }
   document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") { touchKey.clear(); if (stick.id !== null) stickRelease(); refresh(); }
     if (document.visibilityState === "visible") { wake(); if (!conn || !conn.open) connect(); }
   });
 

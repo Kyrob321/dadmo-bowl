@@ -70,7 +70,7 @@
         if (s && slots[s] === conn._id) { slots[s] = null; delete conns[conn._id]; inputs[s] = {}; draw(s);
           $("slot" + s).classList.remove("in"); $("state" + s).textContent = "OPEN · SCAN TO JOIN"; $("lag" + s).textContent = ""; }
         conn._slot = null; setTimeout(() => conn.close(), 200);
-      } else if (msg.t === "in" && conn._slot) {
+      } else if (msg.t === "in" && conn._slot && conns[conn._id] === conn) {
         if (msg.q != null) { if (conn._q != null && msg.q <= conn._q) return; conn._q = msg.q; } // stale or repeated
         inputs[conn._slot] = msg.k || {};
         draw(conn._slot);

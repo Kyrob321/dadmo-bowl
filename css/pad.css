@@ -68,7 +68,7 @@ body {
 .join-form button { font: 12px var(--font); padding: 14px 18px; background: var(--amber); color: #000; border: 0; }
 
 /* Team select card (private to this phone) */
-.pick { grid-column: 2; grid-row: 2; width: min(38vw, 300px); max-height: 82vh; overflow: hidden; background: #111a28; color: var(--chalk); border: 3px solid #000; border-radius: 6px; padding: 10px 12px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 9px; line-height: 1.5; }
+.pick { grid-column: 2; grid-row: 2; width: min(34vw, 300px); max-height: 82vh; overflow: hidden; background: #111a28; color: var(--chalk); border: 3px solid #000; border-radius: 6px; padding: 10px 12px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 9px; line-height: 1.5; }
 .pick[hidden], .logo-mid[hidden] { display: none; }
 .pk-n { align-self: flex-end; font-size: 7px; color: #9fb1c5; }
 .pk-helm { width: 44px; height: 36px; border-radius: 22px 22px 6px 10px; }

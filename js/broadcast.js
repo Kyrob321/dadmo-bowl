@@ -19,7 +19,7 @@ const BROADCAST = (() => {
     let rec;
     if (a === b) rec = "MIRROR MATCH";
     else {
-      const wa = s.w[a] || 0, wb = s.w[b] || 0, ties = s.ties ? "-" + s.ties : "";
+      const wa = s.w[a] || 0, wb = s.w[b] || 0, ties = s.ties ? " (" + s.ties + " TIE" + (s.ties > 1 ? "S" : "") + ")" : "";
       rec = wa === wb ? "SERIES TIED " + wa + "-" + wb + ties : "SERIES: " + (wa > wb ? A.short : B.short) + " LEAD " + Math.max(wa, wb) + "-" + Math.min(wa, wb) + ties;
     }
     return { head: A.short + " VS " + B.short + " · MEETING #" + (s.n + 1), sub: last + " · " + rec, star: L.top || "" };
@@ -79,7 +79,7 @@ const BROADCAST = (() => {
   ];
   const TEAM_MS = [
     { k: "sacks", at: [3, 5, 7], say: n => n + " SACKS TODAY" },
-    { k: "takeaways", at: [3, 4, 5], say: n => n + " TAKEAWAYS TODAY" },
+    { k: "takeaways", at: [3, 4, 5], say: n => n + " TURNOVERS FORCED TODAY" },
   ];
   function teamCount(G, t, k) {
     if (k === "sacks") return Object.values(G.ps).filter(p => p.team === t).reduce((a, p) => a + p.sacks, 0);
@@ -122,7 +122,7 @@ const BROADCAST = (() => {
   // Before the opening kickoff: the matchup history.
   function kickoff(G) {
     const m = memoryLines(CFG.TEAMS[1].id, CFG.TEAMS[2].id);
-    show(G, { team: 0, kicker: "TONIGHT", name: m.head, line: m.sub || "A BRAND NEW RIVALRY STARTS NOW", dur: 4.2 });
+    show(G, { team: 0, kicker: "THE MATCHUP", name: m.head, line: m.sub || "A BRAND NEW RIVALRY STARTS NOW", dur: 4.2 });
   }
   // At the final whistle: player of the game and the updated series.
   function final(G) {

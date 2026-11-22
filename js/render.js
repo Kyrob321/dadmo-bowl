@@ -438,7 +438,7 @@ const RENDER = (() => {
     const L = G.lower; if (!L) return;
     const T = L.team ? CFG.TEAMS[L.team] : null, col = T ? T.color : "#ffb627", trim = T ? T.trim : "#0e1a2b";
     const w = Math.min(VW - 16, Math.max(L.name.length, L.line.length, (L.sub2 || "").length) * 8 + 28);
-    const h = L.sub2 ? 44 : 34, by = VH - 16 - h;
+    const h = L.sub2 ? 44 : 34, by = G.phase === "kick" ? 56 : VH - 16 - h; // up top while the kick meter is showing
     const inK = Math.min(1, L.t / 0.25), outK = L.dur < 900 ? Math.max(0, Math.min(1, (L.dur - L.t) / 0.25)) : 1;
     const bx = Math.round((VW - w) / 2 - (1 - inK) * (VW / 2 + w) + (1 - outK) * (VW / 2 + w));
     ctx.fillStyle = "rgba(8,12,20,.88)"; ctx.fillRect(bx, by, w, h);
