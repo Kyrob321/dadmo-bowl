@@ -125,7 +125,7 @@
   const DEV_ITEMS = ["DEV: 4TH & 1 AT OPP 30", "DEV: 2-MIN DRILL, DOWN 4", "DEV: GOAL LINE, 1ST & GOAL", "DEV: RED ZONE DEFENSE"];
   // Pause menu: either player can pause (PAUSE on the phone, P / Esc / Enter on the keyboard).
   const BASE_ITEMS = ["RESUME", "NEW GAME", "QUIT TO TITLE", "WEATHER: ON", "BACK UP PROGRESS", "RESTORE PROGRESS", "RESET PROGRESS"];
-  const pauseItems = () => BASE_ITEMS.map(i => i.startsWith("WEATHER") ? "WEATHER: " + (WEATHER.enabled() ? "ON" : "OFF") : i === "RESET PROGRESS" && pause.armReset ? "RESET? PICK AGAIN TO ERASE" : i).concat(dev ? DEV_ITEMS : []);
+  const pauseItems = () => BASE_ITEMS.map(i => i.startsWith("WEATHER") ? "WEATHER: " + (WEATHER.enabled() ? "ON" : "OFF") : i === "RESET PROGRESS" && pause.armReset ? "RESET? PICK AGAIN TO ERASE" : i === "NEW GAME" && pause.armNew ? "NEW GAME? PICK AGAIN" : i).concat(dev ? DEV_ITEMS : []);
   let PAUSE_ITEMS = BASE_ITEMS;
   const pause = { on: false, sel: 0, by: 1, lastHuman: null, msg: "", armReset: false };
 
@@ -143,11 +143,12 @@
     document.body.classList.remove("playing"); mode = "title"; pause.on = false; ladderLine();
   }
   let lastPlays = 0, lastPhase = null;
+  const wasConn = { 1: false, 2: false }, dropped = { 1: false, 2: false };
 
   function pauseStep() {
     for (const s of [1, 2]) {
       if (INPUT.pressed(s, "start")) { pause.on = false; return; }
-      if (INPUT.pressed(s, "up") || INPUT.pressed(s, "down")) { pause.msg = ""; if (pause.armReset) { pause.armReset = false; PAUSE_ITEMS = pauseItems(); } }
+      if (INPUT.pressed(s, "up") || INPUT.pressed(s, "down")) { pause.msg = ""; if (pause.armReset || pause.armNew) { pause.armReset = pause.armNew = false; PAUSE_ITEMS = pauseItems(); } }
       if (INPUT.pressed(s, "up")) pause.sel = Math.max(0, pause.sel - 1); // no wrap-around, so UP from RESUME can't land on RESET
       if (INPUT.pressed(s, "down")) pause.sel = Math.min(PAUSE_ITEMS.length - 1, pause.sel + 1);
       if (INPUT.pressed(s, "z") || INPUT.pressed(s, "x")) {
@@ -165,15 +166,17 @@
           pause.msg = str == null ? "" : PROGRESS.restore(str) ? "PROGRESS RESTORED!" : "THAT CODE DIDN'T WORK";
           return;
         }
+        if (pick === "NEW GAME") { pause.armNew = true; PAUSE_ITEMS = pauseItems(); pause.msg = "THIS ENDS THE CURRENT GAME. PICK AGAIN TO CONFIRM"; return; }
         if (pick === "RESET PROGRESS") { pause.armReset = true; PAUSE_ITEMS = pauseItems(); pause.msg = "THIS ERASES ALL UNLOCKS. PICK AGAIN TO CONFIRM"; return; }
-        if (pick.startsWith("RESET?")) { PROGRESS.reset(); pause.armReset = false; PAUSE_ITEMS = pauseItems(); pause.msg = "PROGRESS RESET · UNDO WITH RESTORE PROGRESS + 'UNDO'"; return; }
+        if (pick.startsWith("RESET?")) { PROGRESS.reset(); pause.armReset = false; SEL.level = 0; try { localStorage.removeItem("dadmo-level"); } catch (e) {} PAUSE_ITEMS = pauseItems(); pause.msg = "PROGRESS RESET · UNDO WITH RESTORE PROGRESS + 'UNDO'"; return; }
         pause.on = false;
         const D = GAME.dev;
         if (pick === "DEV: 4TH & 1 AT OPP 30") D.situation({ down: 4, togo: 1, los: 70, poss: 1 });
         else if (pick === "DEV: 2-MIN DRILL, DOWN 4") { GAME.state.score[1] = GAME.state.score[2] - 4; D.situation({ quarter: 4, clock: 120, los: 25, poss: 1 }); }
         else if (pick === "DEV: GOAL LINE, 1ST & GOAL") D.situation({ los: 97, poss: 1, togo: 3 });
         else if (pick === "DEV: RED ZONE DEFENSE") D.situation({ los: 80, poss: 2 });
-        if (pick === "NEW GAME") { PROGRESS.onQuit(GAME.state); openSelect(Object.assign({}, pause.lastHuman, { 2: GAME.state.human[2] || INPUT.active(2) })); } // every new game starts with team select
+        if (pick === "RESUME") for (const s of [1, 2]) if (dropped[s] && !(window.PADS && window.PADS.connected(s))) { GAME.state.human[s] = false; dropped[s] = false; } // the computer takes over until that phone presses a button
+        if (pick.startsWith("NEW GAME?")) { PROGRESS.onQuit(GAME.state); openSelect(Object.assign({}, pause.lastHuman, { 2: GAME.state.human[2] || INPUT.active(2) })); } // every new game starts with team select
         else if (pick === "QUIT TO TITLE") toTitle();
         return;
       }
@@ -241,12 +244,24 @@
     if (mode === "select") return selectStep(dt);
     if (mode === "versus") return versusStep(dt);
     if (mode === "walkout") return walkoutStep(dt);
-    if (mode === "unlock") { UNLOCK.t += dt; if (UNLOCK.t > 1.6 && (INPUT.pressed(1, "z") || INPUT.pressed(2, "z"))) { const id = UNLOCK.id; UNLOCK.id = null; openSelect(pause.lastHuman, id); } return; }
+    if (mode === "unlock") { UNLOCK.t += dt; if (UNLOCK.t > 1.6 && (INPUT.pressed(1, "z") || INPUT.pressed(2, "z"))) { const id = UNLOCK.id; UNLOCK.id = null; openSelect(Object.assign({}, pause.lastHuman, { 2: GAME.state.human[2] || INPUT.active(2) }), id); } return; }
     const G = GAME.state;
     if (pause.on) return pauseStep();
-    if (!demo && G.phase !== "over" && (INPUT.pressed(1, "start") || INPUT.pressed(2, "start"))) { pause.on = true; pause.sel = 0; pause.msg = ""; pause.armReset = false; PAUSE_ITEMS = pauseItems(); return; }
+    if (!demo && G.phase !== "over" && (INPUT.pressed(1, "start") || INPUT.pressed(2, "start"))) { pause.on = true; pause.sel = 0; pause.msg = ""; pause.armReset = false; pause.armNew = false; PAUSE_ITEMS = pauseItems(); return; }
     // Player 2 can take over from the computer mid-game only by connecting a phone.
-    if (!demo && !G.human[2] && window.PADS && window.PADS.connected(2)) G.human[2] = true;
+    // A phone takes over a computer-run team only once someone presses a button on it (a phone that just
+    // rejoins in a pocket shouldn't freeze the computer's team).
+    for (const s of [1, 2]) if (!demo && !G.human[s] && window.PADS && window.PADS.connected(s) && INPUT.anyPressed(s)) { G.human[s] = true; dropped[s] = false; }
+    // A player's phone dropped mid-game (locked, a text, out of range): pause until it's back.
+    for (const s of [1, 2]) {
+      const on = !!(window.PADS && window.PADS.connected(s));
+      if (!demo && G.human[s] && wasConn[s] && !on && G.phase !== "over") {
+        dropped[s] = true; pause.on = true; pause.sel = 0; pause.armReset = false; pause.armNew = false; PAUSE_ITEMS = pauseItems();
+        pause.msg = "P" + s + " PHONE DROPPED · REOPEN IT, OR RESUME: CPU PLAYS";
+      }
+      wasConn[s] = on;
+    }
+    if (pause.on) return;
     const wasOver = G.phase === "over";
     GAME.update(dt);
     // Broadcast graphics: a milestone check after each play; off the screen once the ball is snapped.

@@ -28,6 +28,7 @@ const INPUT = (() => {
       const pad = (window.PADS && window.PADS.inputs[s]) || {};
       for (const k of KEYS) cur[s][k] = !!(kb[s][k] || pad[k] || virt[s][k]);
       tap[s] = {};
+      if (!(window.PADS && window.PADS.connected(s))) lastC[s] = {}; // a phone that comes back starts fresh: no replayed presses
       if (pad.c) for (const k of KEYS) {
         const n = pad.c[k] || 0, was = lastC[s][k];
         if (was != null && n > was && !(cur[s][k] && !prev[s][k])) tap[s][k] = true;

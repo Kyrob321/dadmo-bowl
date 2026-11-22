@@ -61,6 +61,7 @@ body {
 
 .rotate { display: none; position: fixed; inset: 0; align-items: center; justify-content: center; text-align: center; padding: 24px; font-size: 14px; line-height: 2; background: var(--night); z-index: 5; }
 @media (orientation: portrait) and (max-width: 900px) { .rotate { display: flex; } }
+.rotate { flex-direction: column; gap: 22px; } .rotate small { font-size: 9px; line-height: 2; color: var(--amber); max-width: 30em; }
 
 .join-form { position: fixed; inset: 0; background: var(--night); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; z-index: 6; padding: 20px; text-align: center; font-size: 11px; }
 .join-form[hidden] { display: none; }

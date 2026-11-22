@@ -2,7 +2,7 @@
 (function () {
   const $ = id => document.getElementById(id);
   const state = {}; NET.KEYS.forEach(k => state[k] = false);
-  let peer, conn, room, pingTimer, retryTimer, wakeLock;
+  let peer, conn, room, pingTimer, retryTimer, wakeLock, lastPong = 0;
 
   // A stable id per phone, so a dropped phone gets its own slot back.
   let clientId;
@@ -41,8 +41,17 @@
         $("who").className = "p" + msg.slot;
         setStatus("CONNECTED", "ok");
         sendState();
-        clearInterval(pingTimer);
-        pingTimer = setInterval(() => send({ t: "ping", ts: performance.now() }), 1000);
+        clearInterval(pingTimer); lastPong = performance.now();
+        // Watchdog: if the TV stops answering (phone was locked, Wi-Fi blip), reconnect instead of looking connected.
+        pingTimer = setInterval(() => {
+          if (performance.now() - lastPong > 4500) {
+            clearInterval(pingTimer); setStatus("RECONNECTING", "bad");
+            const dead = conn; try { dead.close(); } catch (e) {} // the close handler retries
+            setTimeout(() => { if (!left && conn === dead) connect(); }, 4000); // in case "close" never fires
+            return;
+          }
+          send({ t: "ping", ts: performance.now() });
+        }, 1000);
       } else if (msg.t === "labels") {
         // Button labels follow the game: RUN/PASS before the snap, THROW/NEXT in the pocket, TACKLE/SWITCH on defense...
         for (const [k, id] of [["x", "lx"], ["z", "lz"], ["up", "lup"], ["down", "ldown"], ["left", "lleft"], ["right", "lright"]]) {
@@ -58,6 +67,7 @@
       } else if (msg.t === "pick") {
         showPick(msg);
       } else if (msg.t === "pong") {
+        lastPong = performance.now();
         send({ t: "rtt", ms: performance.now() - msg.ts });
       } else if (msg.t === "full") {
         setStatus("GAME IS FULL", "bad");

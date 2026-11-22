@@ -29,7 +29,7 @@
   try { saved = localStorage.getItem("dadmo-room"); } catch (e) {}
   function openRoom(tries) {
     tries = tries || 0;
-    code = (saved && tries < 8) ? saved : NET.newCode();
+    code = (saved && tries < 24) ? saved : NET.newCode(); // keep trying the same code ~1 minute, so phones find the room again
     peer = new Peer(NET.peerId(code));
     peer.on("open", () => { showRoom(); setNet("READY · WAITING FOR PHONES", "ok"); try { localStorage.setItem("dadmo-room", code); } catch (e) {} saved = code; });
     peer.on("connection", onConn);
@@ -37,7 +37,7 @@
     peer.on("error", err => {
       if (err.type === "unavailable-id") {
         peer.destroy();
-        if (saved && tries < 8) { setNet("REOPENING ROOM " + saved + "…", ""); setTimeout(() => openRoom(tries + 1), 2500); }
+        if (saved && tries < 24) { setNet("REOPENING ROOM " + saved + "…", ""); setTimeout(() => openRoom(tries + 1), 2500); }
         else { saved = null; openRoom(99); }
         return;
       }
@@ -59,7 +59,7 @@
         const s = slotFor(msg.id);
         if (!s) { conn.send({ t: "full" }); setTimeout(() => conn.close(), 300); return; }
         if (conns[msg.id] && conns[msg.id] !== conn) conns[msg.id].close();
-        conns[msg.id] = conn; conn._slot = s; conn._id = msg.id;
+        conns[msg.id] = conn; conn._slot = s; conn._id = msg.id; inputs[s] = {}; // start clean: nothing held, no old press counts
         conn.send({ t: "welcome", slot: s });
         lastLabels[s] = null; lastPick[s] = null; // make sure this phone gets the current labels and pick
         $("slot" + s).classList.add("in");
