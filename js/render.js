@@ -319,7 +319,8 @@ const RENDER = (() => {
 
   // Bottom corners: who each side is controlling, and his power if he's the superstar.
   function blurbs(G, time) {
-    if (G.phase === "over" || G.phase === "kick") return;
+    if (G.phase === "over" || G.phase === "kick" || G.lower) return; // the broadcast graphic takes the bottom
+
     for (const t of [1, 2]) {
       const p = G.control[t]; if (!p || !p.name) continue;
       const T = CFG.TEAMS[t], left = t === 1, x = left ? 4 : VW - 4, al = left ? "left" : "right";
@@ -432,6 +433,24 @@ const RENDER = (() => {
     }
   }
 
+  // TV-style lower third: slides in from the left, team color stripe, kicker tag, name, then the stat line.
+  function lowerThird(G, time) {
+    const L = G.lower; if (!L) return;
+    const T = L.team ? CFG.TEAMS[L.team] : null, col = T ? T.color : "#ffb627", trim = T ? T.trim : "#0e1a2b";
+    const w = Math.min(VW - 16, Math.max(L.name.length, L.line.length, (L.sub2 || "").length) * 8 + 28);
+    const h = L.sub2 ? 44 : 34, by = VH - 16 - h;
+    const inK = Math.min(1, L.t / 0.25), outK = L.dur < 900 ? Math.max(0, Math.min(1, (L.dur - L.t) / 0.25)) : 1;
+    const bx = Math.round((VW - w) / 2 - (1 - inK) * (VW / 2 + w) + (1 - outK) * (VW / 2 + w));
+    ctx.fillStyle = "rgba(8,12,20,.88)"; ctx.fillRect(bx, by, w, h);
+    ctx.fillStyle = col; ctx.fillRect(bx, by, 5, h);
+    const kw = L.kicker.length * 8 + 10;
+    ctx.fillStyle = col; ctx.fillRect(bx + 5, by - 11, kw, 11);
+    text(L.kicker, bx + 10, by - 10, trim === col ? "#f3efe4" : trim, 8);
+    text(L.name, bx + 14, by + 5, "#f3efe4", 8);
+    text(L.line, bx + 14, by + 19, "#ffe14a", 8);
+    if (L.sub2) text(L.sub2, bx + 14, by + 32, "#9fb1c5", 8);
+  }
+
   function bannerDraw(G) {
     const b = G.banner; if (!b) return;
     // Big moments get the middle of the screen. Play results (swats, sacks, first downs...) go in a slim
@@ -477,7 +496,7 @@ const RENDER = (() => {
     for (const t of [1, 2]) if (G.human[t] && G.phase !== "kick" && G.phase !== "over") marker(G, G.control[t], t, time);
     ctx.restore();
     weather(G, time);
-    hud(G); kickMeter(G); mashMeter(G); bannerDraw(G); blurbs(G, time); prompts(G);
+    hud(G); kickMeter(G); mashMeter(G); bannerDraw(G); blurbs(G, time); lowerThird(G, time); prompts(G);
     if (G.fireMsg) { const k = G.fireMsg; text("HE'S ON FIRE!", VW / 2, 52, Math.floor(time * 8) % 2 ? "#ff7a1a" : "#ffe14a", 16, "center"); text(k.name, VW / 2, 72, CFG.TEAMS[k.team].trim, 8, "center"); }
     if (window.DADMO_DEV) { ctx.fillStyle = "#ffb627"; ctx.fillRect(VW - 34, VH - 26, 30, 10); text("DEV", VW - 31, VH - 25, "#000", 8); }
   }

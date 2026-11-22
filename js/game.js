@@ -94,6 +94,14 @@ const GAME = (() => {
   function fx(kind, x, y) { G.fx.push({ kind, x, y, t0: G.time }); if (G.fx.length > 40) G.fx.shift(); }
   function shake(s) { G.shake = Math.max(G.shake || 0, s); }
   function banner(text, sub, secs, color) { G.banner = { text, sub: sub || "", t: secs || 1.6, color: color || "#ffb627" }; }
+  // Per-player box score (for the broadcast pop-ups). Keyed by team + formation spot, so it follows the
+  // same named player all game. Every number here is counted as it happens, never estimated.
+  function pst(p) {
+    if (!p || !p.key || !G.ps) return null;
+    const k = p.team + ":" + (p.star ? p.name : p.key); // a two-way star (Prime) keeps one line for both sides
+    return G.ps[k] || (G.ps[k] = { team: p.team, key: p.key, name: p.name, star: !!p.star, role: p.role,
+      car: 0, rush: 0, rec: 0, recYds: 0, comp: 0, att: 0, passYds: 0, passTds: 0, tds: 0, sacks: 0, ints: 0, broke: 0, tkl: 0 });
+  }
   function event(type, data) { G.events.push(Object.assign({ type, q: G.quarter }, data || {})); }
   function pop(text, x, y, color) { G.pops.push({ text, x, y, t0: G.time, color: color || "#fff" }); if (G.pops.length > 8) G.pops.shift(); }
 
@@ -173,6 +181,7 @@ const GAME = (() => {
       banner: null, events: [], mash: null, next: null, overT: 0, plays: 0,
       time: 0, fx: [], pops: [], shake: 0, celebrate: 0, hype: 0, rep: null, fire: {}, rally: { 1: 0, 2: 0 }, fireMsg: null,
       stats: Object.assign(freshStats(), { by: { 1: freshStats(), 2: freshStats() }, q4: freshStats() }), lastZ: { 1: -9, 2: -9 },
+      ps: {}, lower: null, said: {}, lastPop: -99,
     });
     // One team is at home; the game gets that stadium's weather.
     G.boost = (teams && teams.boost) || { 1: 0, 2: 0 };
@@ -694,7 +703,7 @@ const GAME = (() => {
     T = Math.max(0.25, T);
     G.ball = { state: "air", fx: q.x, fy: q.y, tx, ty, t: 0, T, h: 0.8 + T * 2.4, intended: r, x: q.x, y: q.y, z: 1,
       ideal: T - K.IDEAL_LEAD, wOff: windowFor(r.r.catch) * (clutch ? 1.5 : 1), offT: null, defT: null, defP: null, cannon };
-    G.play.thrown = true; bump("att");
+    G.play.thrown = true; bump("att"); G.play.passer = q; pst(q).att++;
     bump("tgtDepth", tx - G.los); if (tx - G.los >= 15) bump("deepAtt");
     let sep = 99; for (const o of G.players) if (o.team !== r.team) sep = Math.min(sep, dist(o, r));
     G.play.sepAtThrow = sep;
@@ -740,7 +749,7 @@ const GAME = (() => {
     if (s <= K.CC_INT) { // pick
       G.ball = { state: "held", holder: defP, x: defP.x, y: defP.y, z: 1 };
       G.control[defT] = defP; G.control[offT] = nearestTo(offT, defP);
-      anim(defP, "catch", 0.4); shake(0.2); bump("ints");
+      anim(defP, "catch", 0.4); shake(0.2); bump("ints"); pst(defP).ints++;
       if (has(defP, "BALL HAWK")) powerPop(defP, "BALL HAWK!");
       bigPlay(defP); badPlay(qb());
       banner("INTERCEPTED!", "", 1.4, CFG.TEAMS[defT].trim); event("int", { team: defT });
@@ -762,7 +771,7 @@ const GAME = (() => {
   function completeTo(rec, shout) {
     G.ball = { state: "held", holder: rec, x: rec.x, y: rec.y, z: 1 };
     rec.route = null; G.control[G.poss] = rec; anim(rec, "catch", 0.35);
-    bump("comp"); bump("touches"); G.play.caughtAt = rec.x; bump("airYds", rec.x - G.play.startLos);
+    bump("comp"); bump("touches"); G.play.caughtAt = rec.x; pst(rec).rec++; if (G.play.passer) pst(G.play.passer).comp++; bump("airYds", rec.x - G.play.startLos);
     if (G.play.sepAtThrow != null) bump("sepSum", G.play.sepAtThrow);
     if (shout) banner(shout, "", 1, "#7fd68f");
     event("catch", { team: G.poss });
@@ -944,7 +953,7 @@ const GAME = (() => {
   }
 
   function breakFree(car, def, s, move, jdir) {
-    bump("brokenTackles");
+    bump("brokenTackles"); pst(car).broke++;
     if (car.role === "QB" && G.play && G.play.type === "pass" && !G.play.thrown) { G.play.scramble = true; G.play.scrambleT = G.play.t; }
     // The bigger the win, the less the hit slows the runner down.
     car.slowT = 0.6; car.slowMul = clamp(0.35 + 0.3 * s, 0.35, 0.97);
@@ -991,6 +1000,7 @@ const GAME = (() => {
     car.lying = by.lying = true;
     fx("dust", car.x, car.y); fx("dust", by.x, by.y);
     shake(kind === "sack" ? 0.35 : (s != null && s <= -1.5) ? 0.3 : 0.18);
+    if (kind === "sack") pst(by).sacks++; else if (pst(by)) pst(by).tkl++;
     if (kind === "sack") { bump("sacks"); banner("SACK!", "", 1.3, CFG.TEAMS[by.team].trim); event("sack", { team: by.team }); bigPlay(by); badPlay(car); if (by.heat) powerPop(by, "HEAT SEEKER!"); }
     // Dad Strength: he drags the tackler a couple more yards before going down.
     if (kind !== "sack" && has(car, "DAD STRENGTH")) { const g = dirOf(car) * rnd(0.6, 1.4); car.x += g; by.x += g; powerPop(car, "DAD STRENGTH!"); }
@@ -1034,7 +1044,10 @@ const GAME = (() => {
 
   function recordYards(x) {
     const pl = G.play; if (!pl || pl.type === "return") return;
-    const gain = x - pl.startLos;
+    const gain = x - pl.startLos, c = pst(pl.lastCar);
+    if (c && pl.type === "run") { c.car++; c.rush += gain; }
+    else if (c && pl.type === "pass" && pl.caughtAt != null) { c.recYds += gain; if (pl.passer) pst(pl.passer).passYds += gain; }
+    else if (c && pl.type === "pass" && (pl.crossed || pl.scramble) && !pl.thrown) { c.car++; c.rush += gain; }
     if (pl.type === "run" && pl.handed) { bump("rushYds", gain); bump("touches"); }
     else if (pl.type === "run") bump("rushYds", gain); // tackled before the handoff
     else if (pl.type === "pass" && pl.caughtAt != null) { bump("passYds", gain); event("passGain", { team: G.poss, gain }); }
@@ -1093,6 +1106,8 @@ const GAME = (() => {
     G.mash = null; G.rep = null; G.score[team] += 7; G.clockRunning = false;
     bump("points", 7, team); bump("tds", 1, team);
     if (team === G.poss) recordYards(100);
+    { const scorer = team === G.poss ? G.play && G.play.lastCar : carrier(), sc = pst(scorer); if (sc) sc.tds++;
+      if (team === G.poss && G.play && G.play.type === "pass" && G.play.caughtAt != null && G.play.passer) pst(G.play.passer).passTds++; }
     if (G.play && G.play.lastCar) bigPlay(G.play.lastCar);
     fireOut(other(team));
     event("td", { team, pickSix: team !== G.poss });
@@ -1216,5 +1231,5 @@ const GAME = (() => {
       setupScrimmage();
     },
   };
-  return { state: G, newGame, update, sim, fgNeed, windowFor, setTeams, dev, fireOn };
+  return { pst, state: G, newGame, update, sim, fgNeed, windowFor, setTeams, dev, fireOn };
 })();

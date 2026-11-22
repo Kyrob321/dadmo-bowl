@@ -22,7 +22,7 @@ const PROGRESS = (() => {
   // If the main save is ever unreadable, fall back to the copy made after the last finished game.
   try { if (localStorage.getItem(KEY) && !JSON.parse(localStorage.getItem(KEY)).unlocked) data = load(KEY + "-backup"); } catch (e) { data = load(KEY + "-backup"); }
 
-  function fresh() { return { v: 1, unlocked: START.slice(), games: 0, wins: 0, takeaways: 0, bestTds: 0, bestLongWin: false, live: null, log: [] }; }
+  function fresh() { return { v: 1, unlocked: START.slice(), games: 0, wins: 0, takeaways: 0, bestTds: 0, bestLongWin: false, live: null, log: [], vs: {} }; }
   function load(key) {
     let d = null; try { d = JSON.parse(localStorage.getItem(key) || "null"); } catch (e) {}
     d = Object.assign(fresh(), d || {});
@@ -113,11 +113,11 @@ const PROGRESS = (() => {
     try {
       const o = JSON.parse(atob(String(str).trim().replace(/^DADMO-/, "")));
       if (!Array.isArray(o.u)) return false;
-      data = Object.assign(fresh(), { unlocked: o.u.filter(id => TEAMS.byId[id]), games: +o.g || 0, wins: +o.w || 0, takeaways: +o.t || 0, bestTds: +o.b || 0, bestLongWin: !!o.l });
+      data = Object.assign(fresh(), { unlocked: o.u.filter(id => TEAMS.byId[id]), games: +o.g || 0, wins: +o.w || 0, takeaways: +o.t || 0, bestTds: +o.b || 0, bestLongWin: !!o.l, vs: data.vs || {} }); // matchup history stays
       save(); return true;
     } catch (e) { return false; }
   }
 
-  return { isUnlocked, card, door, openTeams, onPlay, onQuit, onGameOver, cheatKey, reset, code, restore, setDev,
+  return { isUnlocked, card, door, openTeams, onPlay, onQuit, onGameOver, cheatKey, reset, code, restore, setDev, save,
     get data() { return data; }, LADDER, START, CHEAT };
 })();

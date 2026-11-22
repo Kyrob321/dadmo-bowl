@@ -135,13 +135,14 @@
     pause.lastHuman = Object.assign({}, human);
     if (teams) lastTeams = teams;
     GAME.newGame(human, lastTeams);
-    mode = "game"; pause.on = false; lastPlays = 0;
+    mode = "game"; pause.on = false; lastPlays = 0; lastPhase = null;
+    if (!demo) BROADCAST.kickoff(GAME.state);
   }
   function toTitle() {
     if (mode === "game" && GAME.state.phase !== "over") PROGRESS.onQuit(GAME.state);
     document.body.classList.remove("playing"); mode = "title"; pause.on = false; ladderLine();
   }
-  let lastPlays = 0;
+  let lastPlays = 0, lastPhase = null;
 
   function pauseStep() {
     for (const s of [1, 2]) {
@@ -248,8 +249,17 @@
     if (!demo && !G.human[2] && window.PADS && window.PADS.connected(2)) G.human[2] = true;
     const wasOver = G.phase === "over";
     GAME.update(dt);
+    // Broadcast graphics: a milestone check after each play; off the screen once the ball is snapped.
+    BROADCAST.update(G, dt);
+    if (G.phase === "dead" && lastPhase === "live") BROADCAST.afterPlay(G);
+    if (G.phase === "live" && G.lower && (G.lower.kicker !== "TONIGHT" || G.lower.t > 1.2)) G.lower = null;
+    lastPhase = G.phase;
     if (!demo && G.plays !== lastPlays) { lastPlays = G.plays; PROGRESS.onPlay(G); }
-    if (!demo && !wasOver && G.phase === "over") { UNLOCK.id = PROGRESS.onGameOver(G); UNLOCK.t = 0; }
+    if (!demo && !wasOver && G.phase === "over") {
+      UNLOCK.id = PROGRESS.onGameOver(G); UNLOCK.t = 0;
+      if (G.human[1] || G.human[2]) BROADCAST.record(G);
+    }
+    if (!wasOver && G.phase === "over") BROADCAST.final(G);
     if (G.phase === "over" && G.overT > 2.5) {
       if (demo) { if (G.overT > 6) start({ 1: false, 2: false }); }
       else if (INPUT.pressed(1, "z") || INPUT.pressed(2, "z")) {

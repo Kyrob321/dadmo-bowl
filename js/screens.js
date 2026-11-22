@@ -125,16 +125,24 @@ const SCREENS = (() => {
       const kk = (t - slam - 0.2) / 0.8;
       for (const sl of [1, 2]) {
         const tm = TEAMS.byId[teams[sl]], x = sl === 1 ? 16 : VW - 16, al = sl === 1 ? "left" : "right";
-        text(tm.name, x, 150, "#f3efe4", 8, al);
-        text(tm.tag + " · " + tm.star.split(",")[0], x, 164, "#ffe14a", 8, al);
-        bars(sl === 1 ? 16 : VW - 16, 186, teams[sl], kk, al);
+        text(tm.name, x, 144, "#f3efe4", 8, al);
+        text(tm.tag, x, 156, "#f3efe4", 8, al);
+        text("★ " + tm.star.split(",")[0], x, 168, "#ffe14a", 8, al);
+        bars(sl === 1 ? 16 : VW - 16, 182, teams[sl], kk, al);
       }
+    }
+    // Matchup memory: how these two have done against each other on this laptop.
+    if (t > 0.9) { c.fillStyle = "rgba(0,0,0,.6)"; c.fillRect(0, 241, VW, VH - 241); } // readable on any team color
+    if (t > 0.9 && typeof BROADCAST !== "undefined") {
+      const m = BROADCAST.memoryLines(teams[1], teams[2]);
+      text(m.head, VW / 2, 246, "#f3efe4", 8, "center");
+      if (m.sub) text(m.sub, VW / 2, 257, "#ffb627", 8, "center");
     }
     if (t > 1.2 && teams.home) {
       const ht = TEAMS.byId[teams[teams.home]];
-      text("AT " + ht.short + " STADIUM · " + (WEATHER.enabled() ? WEATHER.KINDS[ht.home].label : "WEATHER OFF"), VW / 2, 250, "#9fb1c5", 8, "center");
+      text("AT " + ht.short + " STADIUM · " + (WEATHER.enabled() ? WEATHER.KINDS[ht.home].label : "WEATHER OFF"), VW / 2, 268, "#9fb1c5", 8, "center");
     }
-    if (t > 1.6) text("Z: MEET THE SUPERSTARS", VW / 2, 270, Math.floor(t * 3) % 2 ? "#f3efe4" : "#ffb627", 8, "center");
+    if (t > 1.6) text("Z: MEET THE SUPERSTARS", VW / 2, 279, Math.floor(t * 3) % 2 ? "#f3efe4" : "#ffb627", 8, "center");
   }
 
   // ---------- NEW CHALLENGER ----------

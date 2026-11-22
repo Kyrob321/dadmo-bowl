@@ -73,3 +73,16 @@ window.EXPECT_STARS = {
 // Balance with powers on: net points per drive (own minus allowed, vs Krush) for every team within 0.6 of Krush,
 // except the Bolts (up to +1.2) and the Legends (the boss). On fire: 0 to 2 times per team per game.
 window.EXPECT_BALANCE = { net: [-0.6, 0.6], bolts: [-0.6, 1.2], firePerGame: [0, 2] };
+
+// T6 broadcast pop-ups (written before running). Pop-ups may only state true numbers.
+const EXPECT_BROADCAST = {
+  // Box score must add up exactly to the team totals the game already counts (|diff| < 0.01).
+  sums: ["rush=rushYds", "recYds=passYds", "passYds=passYds", "comp=comp", "att=att", "sacks=sacks", "ints=ints", "broke=brokenTackles", "tds=tds"],
+  // Every pop-up's text, rebuilt from the box score at that moment, matches what was shown: 100%.
+  truthful: 1.0,
+  // Pop-ups per game (CPU vs CPU, ~130 plays): enough to notice, not a constant ticker. Why: ~10 milestone
+  // stats, most players reach none; stars and lead backs hit 1–3 each.
+  perGame: [2, 9],
+  gamesWithNone: [0, 0.1],   // share of games with zero pop-ups
+  playerOfGame: [0.97, 1],   // share of games where one is named
+};
