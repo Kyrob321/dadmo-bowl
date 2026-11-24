@@ -4,7 +4,7 @@
 //
 // Song format: each channel is a string of steps (one step = an 8th note), "|" just marks bars.
 //   C5, F#4, Bb3 ...  start a note      -  hold the previous note      .  rest
-//   drums: k kick, s snare, h hat, o open hat, x crash, .  rest
+//   drums: k kick, s snare, h hat, o open hat, x crash, j sleigh bells, .  rest
 const MUSIC = (() => {
   // ---------- the songs ----------
   const rep = (s, n) => Array(n).fill(s).join(" | ");
@@ -74,6 +74,56 @@ const MUSIC = (() => {
     } },
   };
 
+  // ---------- Christmas season (Nov 20 - Dec 31) ----------
+  // Chiptune arrangements of old public-domain carols, plus sleigh bells ("j") on the game loop.
+  const XMAS = {
+    // TITLE: "Jingle Bells" (1857), the chorus, brisk.
+    title: { bpm: 176, loop: true, ch: {
+      lead: "E5 - E5 - E5 - - - | E5 - E5 - E5 - - - | E5 - G5 - C5 - - D5 | E5 - - - - - - - |" +
+            " F5 - F5 - F5 - - F5 | F5 - E5 - E5 - E5 E5 | E5 - D5 - D5 - E5 - | D5 - - - G5 - - - |" +
+            " E5 - E5 - E5 - - - | E5 - E5 - E5 - - - | E5 - G5 - C5 - - D5 | E5 - - - - - - - |" +
+            " F5 - F5 - F5 - F5 - | F5 - E5 - E5 - E5 E5 | G5 - G5 - F5 - D5 - | C5 - - - - - . . ",
+      harm: stab("G4") + " | " + stab("G4") + " | " + stab("G4") + " | " + stab("G4") + " | " +
+            stab("A4") + " | " + stab("G4") + " | " + stab("F#4") + " | " + stab("B4") + " | " +
+            stab("G4") + " | " + stab("G4") + " | " + stab("G4") + " | " + stab("G4") + " | " +
+            stab("A4") + " | " + stab("G4") + " | " + stab("B4") + " | E4 - - - - - . . ",
+      bass: rep("C3 . G2 . C3 . G2 .", 4) + " | F2 . C3 . F2 . C3 . | C3 . G2 . C3 . G2 . | D3 . A2 . D3 . A2 . | G2 . D3 . G2 . B2 . | " +
+            rep("C3 . G2 . C3 . G2 .", 4) + " | F2 . C3 . F2 . C3 . | C3 . G2 . C3 . G2 . | G2 . D3 . G2 . B2 . | C3 - - - - - . . ",
+      drum: rep("k j s j k j s j", 7) + " | k j s j s s s s | " + rep("k j s j k j s j", 7) + " | x j . j x . . .",
+    } },
+    // SELECT / VERSUS: "Deck the Halls" (traditional), easygoing.
+    select: { bpm: 132, loop: true, ch: {
+      lead: "C6 - - Bb5 A5 - G5 - | F5 - G5 - A5 - F5 - | G5 A5 Bb5 G5 A5 - - G5 | F5 - E5 - F5 - - - |" +
+            " G5 - - A5 Bb5 - G5 - | A5 - - Bb5 C6 - G5 - | A5 B5 C6 D6 E6 F6 E6 D6 | C6 - - - - - . . |" +
+            " C6 - - Bb5 A5 - G5 - | F5 - G5 - A5 - F5 - | Bb5 Bb5 Bb5 Bb5 A5 - - G5 | F5 - E5 - F5 - - - ",
+      harm: stab("A4") + " | " + stab("A4") + " | " + stab("Bb4") + " | " + stab("A4") + " | " +
+            stab("E5") + " | " + stab("F5") + " | " + stab("G5") + " | " + stab("E5") + " | " +
+            stab("A4") + " | " + stab("A4") + " | " + stab("D5") + " | " + stab("A4"),
+      bass: "F2 . C3 . F2 . C3 . | F2 . C3 . F2 . A2 . | C3 . G2 . C3 . E2 . | C3 . C3 . F2 . . . |" +
+            " C3 . G2 . C3 . G2 . | F2 . C3 . F2 . C3 . | G2 . D3 . G2 . G2 . | C3 . G2 . C3 . . . |" +
+            " F2 . C3 . F2 . C3 . | F2 . C3 . F2 . A2 . | Bb2 . F2 . Bb2 . C3 . | C3 . C3 . F2 . . . ",
+      drum: rep("k j s j k j s j", 11) + " | k j s j s s x .",
+    } },
+    // TOUCHDOWN: "We Wish You a Merry Christmas" (traditional), the first lines.
+    td: { bpm: 190, loop: false, ch: {
+      lead: "G4 - | C5 - C5 D5 C5 B4 | A4 - A4 - | A4 - D5 - D5 E5 D5 C5 | B4 - G4 - | G4 G4 A4 - D5 - B4 - | C5 - - - - - . . ",
+      harm: "B3 - | E4 - - - - - | A4 - - - | F#4 - - - - - - - | B3 - - - | E4 - G4 - A4 - B4 - | E4 - - - - - . . ",
+      bass: "G2 - | C3 - - G2 - - | F2 - - - | D3 - - A2 D3 - - - | G2 - - - | C3 - E3 - F2 - G2 - | C3 - - - - - . . ",
+      drum: "k . | k . j . j . | k . j . | k . j . k . j . | k . s . | k j s j k j s s | x j . . . . . . ",
+    } },
+    // FINAL WHISTLE: "Joy to the World" (traditional), the opening line and a big last chord.
+    final: { bpm: 132, loop: false, ch: {
+      lead: "C6 - - B5 A5 - G5 - | - F5 E5 - D5 - C5 - | - - - - - - . . | C5 E5 G5 C6 - - - - | . . . .",
+      harm: "E5 - - - F5 - E5 - | - A4 G4 - F4 - E4 - | - - - - - - . . | G4 C5 E5 G5 - - - - | . . . .",
+      bass: "C3 - - - F2 - C3 - | - F2 - - G2 - C3 - | - - - - - - . . | C3 - G2 - C3 - - - | . . . .",
+      drum: "x . . . k j s j | k j s j k j s j | k . . . . . . . | k s s s x . . . | . . . .",
+    } },
+  };
+  if (typeof HOLIDAY !== "undefined" && HOLIDAY.on) {
+    Object.assign(SONGS, XMAS);
+    SONGS.game = Object.assign({}, SONGS.game, { ch: Object.assign({}, SONGS.game.ch, { drum: SONGS.game.ch.drum.replace(/h/g, "j") }) }); // sleigh bells on the game loop
+  }
+
   // ---------- turning text into notes ----------
   const NOTE = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
   const freq = n => { const m = /^([A-G])([#b]?)(\d)$/.exec(n); if (!m) return 0;
@@ -135,6 +185,7 @@ const MUSIC = (() => {
     else if (k === "h") noise(t, 0.035, 0.07, 7000);
     else if (k === "o") noise(t, 0.16, 0.07, 6000);
     else if (k === "x") noise(t, 0.9, 0.16, 3500);
+    else if (k === "j") { noise(t, 0.07, 0.08, 8500); noise(t + 0.025, 0.06, 0.06, 9500); noise(t + 0.05, 0.09, 0.04, 10500); } // sleigh bells: a quick shimmer
   }
   const LEVEL = { lead: 0.085, harm: 0.045, bass: 0.17 };
   function playStep(song, i, t, spb) {

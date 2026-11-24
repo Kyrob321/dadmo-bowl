@@ -100,6 +100,13 @@ const SPRITES = (() => {
     ctx.fillStyle = pal.stripe; ctx.fillRect(hx + 1, hy - 1, 1, 4);
     ctx.fillStyle = pal.skin; ctx.fillRect(hx + 3, hy + 2, 1, 2);
     ctx.fillStyle = "#9aa0a6"; ctx.fillRect(hx + 4, hy + 1, 1, 3); ctx.fillRect(hx + 5, hy + 2, 1, 1);
+    // Christmas season: a Santa hat on every helmet, flopping toward the back.
+    if (typeof HOLIDAY !== "undefined" && HOLIDAY.on) {
+      ctx.fillStyle = "#f3efe4"; ctx.fillRect(hx - 1, hy - 2, 7, 2);                       // white fur trim
+      ctx.fillStyle = "#d8342c"; ctx.fillRect(hx, hy - 4, 5, 2); ctx.fillRect(hx - 1, hy - 5, 4, 1); ctx.fillRect(hx - 2, hy - 6, 2, 1);
+      ctx.fillStyle = "#a81f1a"; ctx.fillRect(hx + 3, hy - 4, 2, 1);                       // shade
+      ctx.fillStyle = "#ffffff"; ctx.fillRect(hx - 4, hy - 7, 2, 2);                       // pom-pom
+    }
     limbArm(pose.fa, pal.jersey, pal.skin);
     if (pose.ball) { const b = P(pose.ball); ctx.fillStyle = "#7a3f12"; ctx.fillRect(Math.round(b[0]) - 1, Math.round(b[1]) - 1, 3, 2); }
     outline(ctx);

@@ -159,7 +159,7 @@
       if (INPUT.pressed(s, "z") || INPUT.pressed(s, "x")) {
         const pick = PAUSE_ITEMS[pause.sel];
         // menu items that keep the pause screen open
-        if (pick.startsWith("MUSIC")) { const m = MUSIC.toggle(); PAUSE_ITEMS = pauseItems(); pause.msg = m ? "MUSIC ON" : "MUSIC OFF (PRESS M ON THE LAPTOP ANYTIME)"; return; }
+        if (pick.startsWith("MUSIC")) { const m = MUSIC.toggle(); PAUSE_ITEMS = pauseItems(); musicLabel(); pause.msg = m ? "MUSIC ON" : "MUSIC OFF (PRESS M ON THE LAPTOP ANYTIME)"; return; }
         if (pick.startsWith("WEATHER")) { WEATHER.toggle(); PAUSE_ITEMS = pauseItems(); pause.msg = WEATHER.enabled() ? "WEATHER ON: " + WEATHER.label() : "WEATHER OFF FOR NOW"; return; }
         // Backup and restore happen on the phone that picked them (copy into Notes / paste back in).
         // From the laptop keyboard (no phone), they fall back to a laptop dialog.
@@ -250,7 +250,12 @@
     if (G.phase === "over") { if (!musOver) { musOver = true; MUSIC.jingle("final", null); } return; }
     MUSIC.play("game");
   }
-  addEventListener("keydown", e => { if (e.code === "KeyM") { MUSIC.toggle(); PAUSE_ITEMS = pauseItems(); } });
+  // Music on/off from anywhere: M on the laptop, the button on the title screen, the pause menu,
+  // or PAUSE on a phone while the title screen is up.
+  function musicToggle() { MUSIC.toggle(); PAUSE_ITEMS = pauseItems(); musicLabel(); }
+  function musicLabel() { const b = document.getElementById("musicBtn"); if (!b) return; const on = MUSIC.enabled(); b.textContent = "MUSIC: " + (on ? "ON" : "OFF"); b.classList.toggle("off", !on); }
+  addEventListener("keydown", e => { if (e.code === "KeyM") musicToggle(); });
+  { const b = document.getElementById("musicBtn"); if (b) { b.addEventListener("click", e => { musicToggle(); b.blur(); }); musicLabel(); } }
 
   // A backup/restore sheet left open on a phone closes once the game is unpaused.
   const sheetOpen = { 1: false, 2: false };
@@ -264,6 +269,7 @@
       // hold PAUSE for 3 seconds to flip developer mode
       if (INPUT.kbHeld(1, "start")) { holdStart += dt; if (holdStart > 3 && holdStart - dt <= 3) setDev(!dev); } else holdStart = 0;
       for (const s of [1, 2]) {
+        if (INPUT.pressed(s, "start") && !INPUT.kbHeld(s, "start")) musicToggle(); // phone PAUSE on the title: music on/off (laptop P stays for developer mode)
         for (const k of ["up", "down", "left", "right"]) if (INPUT.pressed(s, k)) { const r = PROGRESS.cheatKey(k); if (r) cheatFlash(r === "again"); }
         if (INPUT.pressed(s, "z") || INPUT.pressed(s, "x")) {
           const human = { 1: true, 2: INPUT.active(2) };

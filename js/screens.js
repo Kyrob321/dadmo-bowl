@@ -19,6 +19,13 @@ const SCREENS = (() => {
     px(7, 5, 2, 2, "#0c0c0e");
     px(11, 4, 3, 1, "#b9bec4"); px(11, 7, 3, 1, "#b9bec4"); px(13, 4, 1, 5, "#b9bec4");
     if (mystery) text("?", x + 7 * s, y + 2.5 * s, "#ffb627", Math.round(s * 4), "center");
+    else if (typeof HOLIDAY !== "undefined" && HOLIDAY.on) { // Santa hat, flopping toward the back of the helmet
+      px(0, -4, 11, 1, "#0c0c0e"); px(-1, -6, 7, 2, "#0c0c0e"); px(-3, -9, 5, 4, "#0c0c0e");            // dark outline
+      px(1, -3, 10, 2, "#d8342c"); px(0, -5, 6, 2, "#d8342c"); px(-1, -6, 3, 1, "#d8342c");              // red cap, flopping back
+      px(7, -3, 4, 1, "#a81f1a"); px(4, -5, 2, 1, "#a81f1a");                                                 // shade
+      px(1, -1, 11, 2, "#f3efe4");                                                                            // white fur trim
+      px(-2, -8, 3, 3, "#ffffff");                                                                            // pom-pom
+    }
   }
   function shade(hex, amt) {
     if (hex[0] !== "#") return hex;
@@ -30,6 +37,16 @@ const SCREENS = (() => {
     c.fillStyle = "#0e1a2b"; c.fillRect(0, 0, VW, VH);
     // slow scrolling yard lines
     c.fillStyle = "#16263d"; for (let x = -((time * 20) % 32); x < VW; x += 32) c.fillRect(Math.round(x), 0, 2, VH);
+    if (typeof HOLIDAY !== "undefined" && HOLIDAY.on) snow(time);
+  }
+  // Christmas season: gentle snow over the full-screen moments (worked out from the clock, no particles to keep).
+  function snow(time) {
+    const c = R(), h = (i, n) => { const v = Math.sin(i * 127.1 + n * 311.7) * 43758.5453; return v - Math.floor(v); };
+    for (let i = 0; i < 70; i++) {
+      const big = i < 25, x = ((h(i, 1) * (VW + 40) - time * (big ? 9 : 5) + Math.sin(time + i) * 4) % (VW + 40) + VW + 40) % (VW + 40) - 20;
+      const y = ((h(i, 2) * VH + time * (big ? 24 : 14) * (0.7 + h(i, 3) * 0.6)) % VH + VH) % VH;
+      c.fillStyle = big ? "rgba(255,255,255,.8)" : "rgba(255,255,255,.5)"; c.fillRect(Math.round(x), Math.round(y), big ? 2 : 1, big ? 2 : 1);
+    }
   }
   function bars(x, y, team, k, align) {
     const tp = TEAMS.tape(team), c = R();

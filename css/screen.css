@@ -74,3 +74,29 @@ body.playing #game { display: block; }
 .cheat[hidden] { display: none; }
 .cheat.go { animation: cheatflash .9s steps(6) 1; }
 @keyframes cheatflash { 0% { background: #fff; color: #c7b58a; } 40% { background: #6fb3a8; color: #fff; } 100% { background: rgba(14,26,43,.85); } }
+
+/* ---------- Christmas season (html.xmas, Nov 20 - Dec 31) ---------- */
+#xsnow { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 0; }
+#xsnow i { position: absolute; top: -10px; background: #fff; animation: xfall linear infinite; }
+@keyframes xfall { to { transform: translate(var(--drift), 105vh); } }
+body.playing #xsnow { display: none; } /* the game draws its own snow on the field */
+.xmas .title { position: relative; z-index: 1; }
+/* a string of twinkling lights across the top of the title screen */
+.xmas .title::before { content: ""; position: fixed; left: 0; right: 0; top: 0; height: 14px; z-index: 2;
+  background: radial-gradient(circle at 10px 9px, #ff3b3b 0 4px, transparent 5px) 0 0 / 80px 14px repeat-x,
+              radial-gradient(circle at 30px 9px, #3bd16f 0 4px, transparent 5px) 0 0 / 80px 14px repeat-x,
+              radial-gradient(circle at 50px 9px, #ffd23b 0 4px, transparent 5px) 0 0 / 80px 14px repeat-x,
+              radial-gradient(circle at 70px 9px, #4aa8ff 0 4px, transparent 5px) 0 0 / 80px 14px repeat-x,
+              linear-gradient(#1c3a22, #1c3a22) 0 3px / 100% 2px no-repeat;
+  animation: xtwinkle 1.2s steps(2) infinite; }
+@keyframes xtwinkle { 50% { filter: brightness(.55) hue-rotate(90deg); } }
+/* a pixel Santa hat on the first letter of the logo */
+.xmas .logo { position: relative; }
+.xmas .logo::before { content: ""; position: absolute; left: -.22em; top: -.5em; width: .95em; height: .8em; transform: rotate(-12deg); background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 15' shape-rendering='crispEdges'><rect x='2' y='6' width='11' height='4' fill='%23d8342c'/><rect x='4' y='4' width='8' height='2' fill='%23d8342c'/><rect x='7' y='2' width='6' height='2' fill='%23d8342c'/><rect x='11' y='1' width='3' height='1' fill='%23d8342c'/><rect x='13' y='2' width='2' height='2' fill='%23d8342c'/><rect x='2' y='6' width='3' height='4' fill='%23a81f1a'/><rect x='14' y='3' width='3' height='3' fill='%23fff'/><rect x='0' y='10' width='15' height='4' fill='%23f3efe4'/><rect x='0' y='14' width='15' height='1' fill='%23000' opacity='.5'/></svg>") center / contain no-repeat; image-rendering: pixelated; pointer-events: none; }
+.xmas-msg { margin: 0; font-size: clamp(9px, 1.2vw, 18px); color: #ff5a5a; text-shadow: 2px 2px 0 #000; animation: xmsg 1.6s steps(2) infinite; }
+@keyframes xmsg { 50% { color: #5ee08a; } }
+
+/* title-screen music switch */
+.music-btn { font: clamp(8px, 1vw, 14px) "Press Start 2P", monospace; background: #0b1422; color: var(--chalk); border: 3px solid var(--chalk); padding: .7em 1em; cursor: pointer; box-shadow: 3px 3px 0 #000; }
+.music-btn.off { color: #9fb1c5; border-color: #55627a; }
+.music-btn:focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; }

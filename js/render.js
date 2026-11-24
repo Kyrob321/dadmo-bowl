@@ -40,11 +40,16 @@ const RENDER = (() => {
         x.fillStyle = row % 2 ? "#242c3d" : "#1a2130"; x.fillRect(0, row * 6, 640, 6);
         for (let i = 0; i < 160; i++) {
           // a home crowd: about 6 in 10 fans in home colors, 2 in 10 visitors
-          const r = Math.random(), col = r < 0.6 ? hc : r < 0.8 ? ac : misc[Math.floor(Math.random() * misc.length)];
+          const xm = typeof HOLIDAY !== "undefined" && HOLIDAY.on;
+          const r = Math.random(), col = xm && r > 0.8 ? (Math.random() < 0.5 ? "#d8342c" : "#1f8a4c") : r < 0.6 ? hc : r < 0.8 ? ac : misc[Math.floor(Math.random() * misc.length)]; // holiday sweaters
           const bob = ((i + row + f) % 3 === 0) ? -1 : 0;
           x.fillStyle = col; x.fillRect(i * 4 + (row % 2) * 2, row * 6 + 2 + bob, 3, 3);
           x.fillStyle = "#e0b48a"; x.fillRect(i * 4 + (row % 2) * 2 + 1, row * 6 + 1 + bob, 1, 1);
           if (f === 1 && Math.random() < 0.25) { x.fillStyle = col; x.fillRect(i * 4 + (row % 2) * 2 + 1, row * 6 - 1 + bob, 1, 2); } // arms up
+          if (xm && (i * 7 + row * 3) % 5 < 2) { // about 4 in 10 fans in Santa hats
+            const hx = i * 4 + (row % 2) * 2, hy = row * 6 + bob;
+            x.fillStyle = "#d8342c"; x.fillRect(hx, hy, 3, 1); x.fillStyle = "#fff"; x.fillRect(hx + 3, hy, 1, 1);
+          }
         }
       }
       return c;
@@ -58,6 +63,15 @@ const RENDER = (() => {
     const off = ((camX * PX * 0.5) % 128 + 128) % 128;
     for (let x = -off; x < VW; x += 512) ctx.drawImage(img, Math.round(x), 22);
     ctx.fillStyle = "#0b1422"; ctx.fillRect(0, 40, VW, 2);
+    if (typeof HOLIDAY !== "undefined" && HOLIDAY.on) { // a string of Christmas lights on the railing, chasing slowly
+      const cols = ["#ff3b3b", "#3bd16f", "#ffd23b", "#4aa8ff"], step = Math.floor(time * 3);
+      ctx.fillStyle = "#1c3a22"; ctx.fillRect(0, 37, VW, 1);
+      for (let x = ((-off) % 10 + 10) % 10, i = 0; x < VW; x += 10, i++) {
+        const k = Math.floor((x + off) / 10);
+        ctx.fillStyle = (k + step) % 4 === 0 ? "#fff6c8" : cols[((k % 4) + 4) % 4];
+        ctx.fillRect(Math.round(x), 38, 2, 2);
+      }
+    }
   }
 
   function goalposts() {
@@ -66,6 +80,13 @@ const RENDER = (() => {
       if (x < -20 || x > VW + 20) continue;
       ctx.fillStyle = "#c9a200"; ctx.fillRect(x - 1, base - 20, 3, 20);
       ctx.fillStyle = "#ffd400"; ctx.fillRect(x - 9, base - 22, 19, 2); ctx.fillRect(x - 9, base - 44, 2, 22); ctx.fillRect(x + 8, base - 44, 2, 22);
+      if (typeof HOLIDAY !== "undefined" && HOLIDAY.on) { // candy-cane stripes, with a bow on the crossbar
+        ctx.fillStyle = "#f3efe4"; ctx.fillRect(x - 1, base - 20, 3, 20); ctx.fillRect(x - 9, base - 22, 19, 2); ctx.fillRect(x - 9, base - 44, 2, 22); ctx.fillRect(x + 8, base - 44, 2, 22);
+        ctx.fillStyle = "#d8342c";
+        for (let y = base - 44; y < base; y += 4) { if (y < base - 22) { ctx.fillRect(x - 9, y, 2, 2); ctx.fillRect(x + 8, y, 2, 2); } else if (y > base - 21) ctx.fillRect(x - 1, y, 3, 2); }
+        for (let xx = x - 9; xx < x + 10; xx += 4) ctx.fillRect(xx, base - 22, 2, 2);
+        ctx.fillStyle = "#1f8a4c"; ctx.fillRect(x - 2, base - 25, 5, 2); ctx.fillStyle = "#d8342c"; ctx.fillRect(x, base - 25, 1, 3);
+      }
     }
   }
 
@@ -217,6 +238,12 @@ const RENDER = (() => {
     // the big mascot head, bobbing to the beat
     const bob = Math.floor(time * 6) % 2 * 2;
     ctx.drawImage(MASCOTS.icon(T.id), x - 18, y - 76 - bob, 36, 36);
+    if (typeof HOLIDAY !== "undefined" && HOLIDAY.on) { // the mascot dresses for the season
+      const art = MASCOTS.ART[T.id], top = art ? Math.max(0, art.findIndex(r => /[^.]/.test(r))) : 0;
+      const hy = y - 76 - bob + top * 3 - 2; // sits on the top of this mascot's drawing
+      ctx.fillStyle = "#d8342c"; ctx.fillRect(x - 12, hy - 6, 22, 6); ctx.fillRect(x - 6, hy - 11, 14, 5); ctx.fillRect(x + 2, hy - 15, 8, 4);
+      ctx.fillStyle = "#f3efe4"; ctx.fillRect(x - 15, hy, 28, 5); ctx.fillRect(x + 9, hy - 18, 6, 6);
+    }
     if (k > 0.1 && k < 0.9 && Math.floor(time * 3) % 2) text("♪", x + 22, y - 72, "#ffe14a", 8);
   }
   const sh0 = () => 0;
@@ -520,6 +547,9 @@ const RENDER = (() => {
         ctx.fillRect(Math.round(x), Math.round(y), w, hgt);
       }
     };
+    if (typeof HOLIDAY !== "undefined" && HOLIDAY.on && k !== "snow" && k !== "rain" && k !== "neon" && k !== "dome") {
+      fall(34, -10, 26, 2, 2, "rgba(255,255,255,.75)"); fall(26, -6, 16, 1, 1, "rgba(255,255,255,.6)"); // light holiday flurries
+    }
     switch (k) {
       case "night": ctx.fillStyle = "rgba(10,20,60,.28)"; ctx.fillRect(0, 0, VW, VH); break;
       case "sunset": { const g = ctx.createLinearGradient(0, 0, 0, VH); g.addColorStop(0, "rgba(255,120,40,.30)"); g.addColorStop(1, "rgba(120,40,90,.10)"); ctx.fillStyle = g; ctx.fillRect(0, 0, VW, VH); break; }
