@@ -298,9 +298,10 @@ const GAME = (() => {
     if (k.needle < 0) { k.needle = 0; k.dir = 1; }
     let acc = null, onside = false;
     if (G.human[k.team]) {
-      // Kickoff: Z kicks deep, X tries an onside kick. Punts and field goals: either button kicks.
-      if (k.t > 0.35 && INPUT.pressed(k.team, "z")) acc = 1 - Math.abs(k.needle - 0.5) * 2;
-      else if (k.t > 0.35 && INPUT.pressed(k.team, "x")) { acc = 1 - Math.abs(k.needle - 0.5) * 2; onside = k.type === "kickoff"; }
+      // Z or X kicks (deep on a kickoff). Onside is on UP, like the other special-teams calls (FG / PUNT),
+      // so a habit press of X or Z can never give the ball away by accident.
+      if (k.t > 0.35 && (INPUT.pressed(k.team, "z") || INPUT.pressed(k.team, "x"))) acc = 1 - Math.abs(k.needle - 0.5) * 2;
+      else if (k.t > 0.35 && k.type === "kickoff" && INPUT.pressed(k.team, "up")) { acc = 1 - Math.abs(k.needle - 0.5) * 2; onside = true; }
     }
     else if (k.t > k.cpuAt) { acc = rnd(0.45, 0.97); onside = k.type === "kickoff" && cpuOnside(k.team); }
     if (acc !== null) {
@@ -363,7 +364,7 @@ const GAME = (() => {
     const spot = Math.round(l.x);
     event("onside", { team: o.kt, got });
     if (got) {
-      bump("onsideRec", 1, o.kt); bigPlay(rec);
+      bump("onsideRec", 1, o.kt); // (no on-fire credit: kickoff players share keys with the scrimmage starters)
       changePoss(o.kt, spot);
       banner("ONSIDE RECOVERED!", CFG.TEAMS[o.kt].short + " KEEP IT!", 2, CFG.TEAMS[o.kt].trim);
     } else {
@@ -1319,14 +1320,14 @@ const GAME = (() => {
   // ---------- main update ----------
   function update(dt) {
     G.time = (G.time || 0) + dt;
-    updateLoose(dt);
+    updateLoose(G.phase === "onside" ? dt * CFG.ACTION_SPEED : dt); // the onside ball moves at play speed, like the players chasing it
     if (G.shake > 0) G.shake = Math.max(0, G.shake - dt);
     if (G.hype > 0) G.hype -= dt;
     if (G.banner) { G.banner.t -= dt; if (G.banner.t <= 0) G.banner = null; }
     if (G.fireMsg) { G.fireMsg.t -= dt; if (G.fireMsg.t <= 0) G.fireMsg = null; }
     const tick = G.clockRunning && !G.ot && (G.phase === "live" || G.phase === "presnap" || G.phase === "dead" || G.phase === "onside");
     if (tick && G.clock > 0) G.clock = Math.max(0, G.clock - dt);
-    if (G.phase === "live" || G.phase === "flight") dt *= CFG.ACTION_SPEED;
+    if (G.phase === "live" || G.phase === "flight" || G.phase === "onside") dt *= CFG.ACTION_SPEED;
     switch (G.phase) {
       case "kick": return updateKick(dt);
       case "flight": return updateFlight(dt);
@@ -1334,7 +1335,7 @@ const GAME = (() => {
       case "presnap":
         if (G.clock <= 0 && !G.ot) { G.next = setupScrimmage; return endQuarter(); }
         // Sitting on the ball: after IDLE_CLOCK_STOP seconds the clock stops until the snap.
-        if (G.clockRunning && G.presnapT >= CFG.IDLE_CLOCK_STOP) { G.clockRunning = false; G.idleStop = true; banner("CLOCK STOPPED", "SNAP WHEN READY", 2, "#9fb1c5"); }
+        if (G.clockRunning && !G.ot && G.presnapT >= CFG.IDLE_CLOCK_STOP) { G.clockRunning = false; G.idleStop = true; banner("CLOCK STOPPED", "SNAP WHEN READY", 2, "#9fb1c5"); }
         return updatePresnap(dt);
       case "dead":
         updateCelebration(dt);

@@ -176,3 +176,8 @@ window.EXPECT_T10 = {
 //  - League (150 games, clear): all 9 EXPECT_LEAGUE checks PASS. Difficulty: same as before (Dad on PRO 2% was
 //    already the known miss that added STARTER; STARTER 42%).
 window.EXPECT_T10.onsideLand = [44, 56];
+// T10 review fixes (virtual-Kyle): onside moved from X to UP (X/Z both kick deep, so a habit press can't give the
+// ball away); TOUCHDOWN banner uses the slim top strip during a celebration; no idle-stop banner in OT; dev 2-MIN
+// DRILL starts at 1:00; onside scramble runs at play speed (ACTION_SPEED; ball too): perfect kicks 39.3%, 1.7 s avg,
+// 0 fallbacks, 0 teleports; no on-fire credit for onside recoveries. Unlock "3 TDs in a game" measured 52% of team-
+// games on main vs 20% with 2:00 quarters; 2 TDs now measures 53%, so the Rattlers goal is 2 TDs (same odds as before).

@@ -381,7 +381,7 @@ const RENDER = (() => {
       const car = G.ball && G.ball.state === "held" ? G.ball.holder : null;
       if (G.mash) lines[t] = G.mash.pause > 0 ? "GET READY..." : "MASH X + Z!";
       else if (G.phase === "presnap") lines[t] = offense ? "X RUN  Z PASS" + (G.down === 4 ? (G.los >= 62 ? "  ▲ FIELD GOAL" : "  ▲ PUNT") : "") : "X SWITCH  MOVE";
-      else if (G.phase === "kick") lines[t] = G.kick.team === t ? (G.kick.type === "kickoff" ? "Z KICK!  X ONSIDE" : "Z KICK!") : "";
+      else if (G.phase === "kick") lines[t] = G.kick.team === t ? (G.kick.type === "kickoff" ? "Z KICK!  ▲ ONSIDE" : "Z KICK!") : "";
       else if (G.phase === "live") {
         const pl = G.play;
         if (car && car.team === t) {
@@ -499,7 +499,8 @@ const RENDER = (() => {
     const b = G.banner; if (!b) return;
     // Big moments get the middle of the screen. Play results (swats, sacks, first downs...) go in a slim
     // strip along the top of the field so they never hide the play they describe.
-    const center = /^(TOUCHDOWN|FINAL|HALFTIME|OVERTIME|END OF|SAFETY|IT'S GOOD|NO GOOD)/.test(b.text) && G.phase !== "kick" && G.phase !== "flight";
+    // (a celebration gets the slim strip up top, so the big banner doesn't cover the show)
+    const center = /^(TOUCHDOWN|FINAL|HALFTIME|OVERTIME|END OF|SAFETY|IT'S GOOD|NO GOOD)/.test(b.text) && G.phase !== "kick" && G.phase !== "flight" && !G.cel;
     if (center) {
       const big = b.text.length > 12 ? 14 : 20, cy = VH / 2;
       ctx.fillStyle = "rgba(0,0,0,.55)"; ctx.fillRect(0, cy - 24, VW, b.sub ? 50 : 38);

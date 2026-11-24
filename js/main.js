@@ -182,7 +182,7 @@
         pause.on = false;
         const D = GAME.dev;
         if (pick === "DEV: 4TH & 1 AT OPP 30") D.situation({ down: 4, togo: 1, los: 70, poss: 1 });
-        else if (pick === "DEV: 2-MIN DRILL, DOWN 4") { GAME.state.score[1] = GAME.state.score[2] - 4; D.situation({ quarter: 4, clock: 120, los: 25, poss: 1 }); }
+        else if (pick === "DEV: 2-MIN DRILL, DOWN 4") { GAME.state.score[1] = GAME.state.score[2] - 4; D.situation({ quarter: 4, clock: 60, los: 25, poss: 1 }); } // last minute (quarters are 2:00)
         else if (pick === "DEV: GOAL LINE, 1ST & GOAL") D.situation({ los: 97, poss: 1, togo: 3 });
         else if (pick === "DEV: RED ZONE DEFENSE") D.situation({ los: 80, poss: 2 });
         if (pick === "RESUME") for (const s of [1, 2]) if (dropped[s] && !(window.PADS && window.PADS.connected(s))) { GAME.state.human[s] = false; dropped[s] = false; } // the computer takes over until that phone presses a button
@@ -216,7 +216,7 @@
         if (offense) return Object.assign(L, { x: "RUN", z: "PASS", up: G.down === 4 ? (G.los >= 62 ? "FG" : "PUNT") : "" });
         return Object.assign(L, { x: "SWITCH", z: "TACKLE", stick: true, b: "BOOST…" }, move); // shown (dim) so the buttons don't jump at the snap
       case "dead": case "flight": case "onside": return null; // keep whatever the phone shows between plays
-      case "kick": return G.kick.team !== t ? L : G.kick.type === "kickoff" ? Object.assign(L, { x: "ONSIDE", z: "KICK" }) : Object.assign(L, { x: "KICK", z: "KICK" });
+      case "kick": return G.kick.team !== t ? L : G.kick.type === "kickoff" ? Object.assign(L, { x: "KICK", z: "KICK", up: "ONSIDE" }) : Object.assign(L, { x: "KICK", z: "KICK" });
       case "over": return G.overT > 2.5 ? Object.assign(L, { z: "NEW GAME" }) : L;
       case "live": {
         const pl = G.play;

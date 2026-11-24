@@ -9,7 +9,7 @@ const PROGRESS = (() => {
   // Totals (wins, takeaways) count in the background the whole time.
   const LADDER = [
     { id: "yetis", goal: "FINISH YOUR FIRST FULL GAME", prog: s => [Math.min(s.games, 1), 1], done: (s) => s.games >= 1 },
-    { id: "rattlers", goal: "SCORE 3 TOUCHDOWNS IN ONE GAME", prog: s => [Math.min(s.bestTds, 3), 3], done: (s, g) => g.tds >= 3 },
+    { id: "rattlers", goal: "SCORE 2 TOUCHDOWNS IN ONE GAME", prog: s => [Math.min(s.bestTds, 2), 2], done: (s, g) => g.tds >= 2 }, // was 3 with 3:00 quarters (same odds)
     { id: "krakens", goal: "5 TAKEAWAYS (ALL GAMES)", prog: s => [Math.min(s.takeaways, 5), 5], done: s => s.takeaways >= 5 },
     { id: "twisters", goal: "WIN 3 GAMES (ALL GAMES)", prog: s => [Math.min(s.wins, 3), 3], done: s => s.wins >= 3 },
     { id: "vipers", goal: "THROW A 40+ YARD PASS AND WIN THE SAME GAME", prog: s => [s.bestLongWin ? 1 : 0, 1], done: (s, g) => g.long40Win },
