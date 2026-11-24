@@ -40,7 +40,7 @@ const GAME = (() => {
       x: spec.x, y: spec.y, x0: spec.x, y0: spec.y, vx: 0, vy: 0,
       spd: RATINGS.speed(r.spd), face: 1, seed: seed++,
       route: null, ri: 0, stride: 0, anim: null, lying: false, skin: Math.floor(Math.random() * 4),
-      down: 0, engaged: 0, blockCd: 0, burst: 0, burstCd: 0, jump: 0, dive: 0, slowT: 0, slowMul: 1, cut: 0, cutDir: 0, repCd: 0,
+      down: 0, engaged: 0, blockCd: 0, burst: 0, burstCd: 0, jump: 0, dive: 0, slowT: 0, slowMul: 1, cut: 0, cutDir: 0, repCd: 0, breakT: 0,
     };
   }
   const byId = id => G.players.find(p => p.side === "off" && p.id === id);
@@ -180,7 +180,7 @@ const GAME = (() => {
       score: { 1: 0, 2: 0 }, quarter: 1, clock: Q, clockRunning: false, ot: false,
       banner: null, events: [], mash: null, next: null, overT: 0, plays: 0,
       time: 0, fx: [], pops: [], shake: 0, celebrate: 0, hype: 0, rep: null, fire: {}, rally: { 1: 0, 2: 0 }, fireMsg: null,
-      stats: Object.assign(freshStats(), { by: { 1: freshStats(), 2: freshStats() }, q4: freshStats() }), lastZ: { 1: -9, 2: -9 },
+      stats: Object.assign(freshStats(), { by: { 1: freshStats(), 2: freshStats() }, q4: freshStats() }), lastZ: { 1: -9, 2: -9 }, boostAt: { 1: -99, 2: -99 },
       ps: {}, lower: null, said: {}, lastPop: -99,
     });
     // One team is at home; the game gets that stadium's weather.
@@ -443,12 +443,17 @@ const GAME = (() => {
       const n = nearestTo(team, target, p, true); if (n) p = G.control[team] = n;
     }
     if (!p || p.down > 0) return;
+    // BOOST: a short burst of speed for your defender, then a few seconds to recharge.
+    // The recharge belongs to the team, so switching players doesn't hand out a fresh boost.
+    if (INPUT.pressed(team, "b") && G.time - G.boostAt[team] >= K.BOOST_CD) { p.burst = K.BOOST_TIME; G.boostAt[team] = G.time; pop("BOOST!", p.x, p.y, "#ffb627"); }
     if (INPUT.pressed(team, "z")) {
       if (b.state === "air") {
-        if (Math.hypot(p.x - b.tx, p.y - b.ty) < 10 && b.defT == null) {
-          b.defT = b.t; b.defP = p; p.jump = b.T - b.t + 0.2;
+        const far = Math.hypot(p.x - b.tx, p.y - b.ty);
+        if (far < K.JUMP_RANGE && b.defT == null) {
+          // The timed jump, plus a break on the ball: he drives to the spot for the rest of the flight (pass-D assist).
+          b.defT = b.t; b.defP = p; p.jump = b.T - b.t + 0.2; p.breakT = b.T - b.t + 0.05;
           const v = verdict(b.t, b.ideal, windowFor(p.r.cov)); b.defFb = v; pop(v[0], p.x, p.y, v[1]);
-        }
+        } else if (b.defT == null && G.time - (G.lastFar || 0) > 0.8) { pop("TOO FAR", p.x, p.y, "#ef5a45"); G.lastFar = G.time; }
       } else {
         const rep = G.rep;
         if (rep && rep.def === p && rep.defT == null) {
@@ -467,6 +472,8 @@ const GAME = (() => {
         }
       }
     }
+    // Pass-D assist: after the jump press he breaks on the ball's landing spot...
+    if (p.breakT > 0 && b.state === "air") { seek(p, b.tx, b.ty, K.BREAK_SPEED); p.manual = true; return; }
     // Tackle assist: the lunge drives straight at the ball carrier...
     if (p.lungeT > 0 && car) {
       const l = dist(p, car) || 1;
@@ -476,6 +483,11 @@ const GAME = (() => {
     // Otherwise it's full control: your defender only moves when you press.
     if (d.any) {
       let dx = d.dx, dy = d.dy;
+      if (!car && b.state === "air" && Math.hypot(p.x - b.tx, p.y - b.ty) < K.JUMP_RANGE) {
+        // ...and steering roughly toward where the ball comes down bends your path onto it.
+        const tx = b.tx - p.x, ty = b.ty - p.y, tl = Math.hypot(tx, ty) || 1, m = Math.hypot(dx, dy) || 1;
+        if ((dx * tx + dy * ty) / (m * tl) > 0.4) { const w = K.ASSIST; dx = dx / m * (1 - w) + tx / tl * w; dy = dy / m * (1 - w) + ty / tl * w; const n = Math.hypot(dx, dy) || 1; dx = dx / n * m; dy = dy / n * m; }
+      }
       if (car && dist(p, car) < K.ASSIST_RANGE) {
         const lead = Math.min(dist(p, car) / p.spd, 0.8);
         const tx = car.x + car.vx * lead - p.x, ty = car.y + car.vy * lead - p.y, tl = Math.hypot(tx, ty) || 1;
@@ -704,6 +716,13 @@ const GAME = (() => {
     G.ball = { state: "air", fx: q.x, fy: q.y, tx, ty, t: 0, T, h: 0.8 + T * 2.4, intended: r, x: q.x, y: q.y, z: 1,
       ideal: T - K.IDEAL_LEAD, wOff: windowFor(r.r.catch) * (clutch ? 1.5 : 1), offT: null, defT: null, defP: null, cannon };
     G.play.thrown = true; bump("att"); G.play.passer = q; pst(q).att++;
+    // A human defender whose man is nowhere near the throw is handed the defender closest to where it's going,
+    // if that one is close enough to make a play (otherwise X still switches by hand).
+    const dT = other(q.team), spot = { x: tx, y: ty }, cur = G.control[dT];
+    if (G.human[dT] && (!cur || cur.down > 0 || dist(cur, spot) > K.AUTO_SWITCH)) {
+      const n = nearestTo(dT, spot, null, true);
+      if (n && n !== cur && dist(n, spot) < K.AUTO_NEAR && (!cur || dist(n, spot) < dist(cur, spot) - 2)) { G.control[dT] = n; pop("SWITCHED", n.x, n.y, "#9fb1c5"); }
+    }
     bump("tgtDepth", tx - G.los); if (tx - G.los >= 15) bump("deepAtt");
     let sep = 99; for (const o of G.players) if (o.team !== r.team) sep = Math.min(sep, dist(o, r));
     G.play.sepAtThrow = sep;
@@ -721,8 +740,15 @@ const GAME = (() => {
     // Ball Hawk: a pass within 4 yards of him and he's there, jumping the route.
     const hawk = G.players.find(p => p.team === defT && has(p, "BALL HAWK") && p.down <= 0 && dist(p, spot) < 5);
     if (hawk && (!d || d.p !== hawk)) { d = { p: hawk, d: Math.min(dist(hawk, spot), K.CC_RADIUS * 0.9) }; hawk.x += (spot.x - hawk.x) * 0.7; hawk.y += (spot.y - hawk.y) * 0.7; }
+    // Your jumper (you pressed JUMP) gets the same extra reach as a lunging tackler, and he's the one in the contest.
+    const jp = b.defP;
+    const humanJump = !hawk && jp && jp.team === defT && jp.down <= 0 && G.human[defT] && G.control[defT] === jp;
+    // ...but only if he's about as close as whoever else is there (a late or far jumper never makes it worse).
+    const jumper = humanJump && dist(jp, spot) < K.CC_RADIUS + K.JUMP_REACH && (!d || d.p === jp || dist(jp, spot) - K.JUMP_REACH <= d.d);
+    if (jumper) d = { p: jp, d: dist(jp, spot) }; // his real distance still counts against him (separation)
+    else if (humanJump && (!d || d.p !== jp)) pop("CAN'T GET THERE", jp.x, jp.y, "#ef5a45"); // why the JUMP didn't count
     // Glue Hands reaches for (and hauls in) throws a normal receiver couldn't get to.
-    const rOk = r && r.d < (has(r.p, "GLUE HANDS") ? 2.3 : 1.8), contested = d && d.d < K.CC_RADIUS;
+    const rOk = r && r.d < (has(r.p, "GLUE HANDS") ? 2.3 : 1.8), contested = d && d.d < K.CC_RADIUS + (jumper ? K.JUMP_REACH : 0);
     const dropOut = () => { anim(r.p, "catch", 0.45); bump("drops"); incomplete("DROPPED!", "drop", r.p); };
     if (!rOk && !contested) return incomplete("INCOMPLETE", "miss");
     if (rOk && !contested) {
@@ -1184,7 +1210,7 @@ const GAME = (() => {
     if (G.mash) return updateMash(dt);
     for (const p of G.players) {
       p.manual = false;
-      for (const k of ["engaged", "blockCd", "burst", "burstCd", "jump", "slowT", "cut", "repCd", "lungeT"]) if (p[k] > 0) p[k] -= dt;
+      for (const k of ["engaged", "blockCd", "burst", "burstCd", "jump", "slowT", "cut", "repCd", "lungeT", "breakT"]) if (p[k] > 0) p[k] -= dt;
     }
     controls(G.poss); controls(other(G.poss));
     for (const p of G.players) {

@@ -82,3 +82,21 @@ body {
 .pk-lock { font-size: 8px; color: var(--amber); } .pk-lock.ok { color: #7fd68f; }
 .pk-prog { width: 90%; height: 8px; background: #22324a; } .pk-prog b { display: block; height: 100%; background: var(--amber); }
 .pk-n { display: flex; justify-content: space-between; width: 100%; gap: 8px; } .pk-lvl { color: var(--amber); font-weight: normal; }
+
+/* Defense BOOST: a wide button above X and Z, shown only on defense. */
+.right-ctrl { justify-self: center; display: flex; flex-direction: column; align-items: center; gap: min(3vh, 14px); }
+.boost { width: min(52vh, 34vw); height: min(15vh, 9vw); border-radius: 999px; background: var(--amber); color: #000; display: flex; align-items: center; justify-content: center; font-size: 12px; box-shadow: inset 0 -5px 0 rgba(0,0,0,.25), 0 4px 0 #8a5d00; transform: rotate(-12deg); }
+.boost[hidden] { display: flex; visibility: hidden; } /* keeps its space, so X and Z never move */
+.boost.on { transform: rotate(-12deg) translateY(3px); box-shadow: inset 0 -2px 0 rgba(0,0,0,.25), 0 1px 0 #8a5d00; }
+.boost.off { filter: grayscale(.8) brightness(.75); }
+
+/* Backup / restore sheet (opened from the TV's pause menu). */
+.sheet { position: fixed; inset: 0; background: var(--night); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; z-index: 7; padding: 16px max(20px, env(safe-area-inset-right)) 16px max(20px, env(safe-area-inset-left)); text-align: center; font-size: 11px; line-height: 1.6; touch-action: auto; user-select: text; -webkit-user-select: text; }
+.sheet[hidden] { display: none; }
+.sheet, .sheet * { -webkit-touch-callout: default; } /* iOS press-and-hold Paste / Copy menu */
+.sheet p { margin: 0; max-width: 60ch; }
+.sheet textarea { width: min(90vw, 640px); font: 14px/1.4 ui-monospace, Menlo, monospace; padding: 10px; background: #000; color: var(--amber); border: 3px solid var(--chalk); resize: none; word-break: break-all; }
+.sheet-btns { display: flex; gap: 14px; }
+.sheet button { font: 12px var(--font); padding: 14px 18px; background: var(--amber); color: #000; border: 0; }
+.sheet button.ghost { background: #2a2a2a; color: var(--chalk); }
+.sheet-note { color: #7fd68f; min-height: 1.6em; }

@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/pad.css?v=1795330617">
+<link rel="stylesheet" href="css/pad.css?v=1795503662">
 </head>
 <body>
 <div class="rotate" id="rotate">TURN YOUR PHONE SIDEWAYS<small>WON'T TURN? SWIPE DOWN FROM THE TOP-RIGHT CORNER AND TAP THE LOCK ICON</small></div>
@@ -37,10 +37,20 @@
   <div class="logo-mid" id="logoMid">DADMO<br>BOWL</div>
   <div class="pick" id="pick" hidden aria-live="polite"></div>
 
+  <div class="right-ctrl">
+  <div class="boost" data-k="b" id="boostBtn" hidden>BOOST</div>
   <div class="buttons">
     <div class="b-wrap"><div class="b" data-k="x">X</div><span class="b-label" id="lx">START</span></div>
     <div class="b-wrap"><div class="b" data-k="z">Z</div><span class="b-label" id="lz">START</span></div>
   </div>
+  </div>
+</div>
+
+<div class="sheet" id="sheet" hidden>
+  <p id="sheetMsg"></p>
+  <textarea id="sheetCode" rows="4" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false" aria-label="Backup code"></textarea>
+  <p id="sheetNote" class="sheet-note"></p>
+  <div class="sheet-btns"><button id="sheetGo" type="button"></button><button id="sheetClose" type="button" class="ghost">CLOSE</button></div>
 </div>
 
 <div class="join-form" id="joinForm" hidden>
@@ -50,7 +60,7 @@
 </div>
 
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-<script src="js/net.js?v=1795330617"></script>
-<script src="js/pad.js?v=1795330617"></script>
+<script src="js/net.js?v=1795503662"></script>
+<script src="js/pad.js?v=1795503662"></script>
 </body>
 </html>

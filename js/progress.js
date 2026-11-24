@@ -104,16 +104,31 @@ const PROGRESS = (() => {
   }
 
   // ----- reset and backup -----
-  function reset() { try { localStorage.setItem((dev ? DEV_KEY : KEY) + "-before-reset", JSON.stringify(data)); } catch (e) {} data = fresh(); save(); }
-  function code() { return "DADMO-" + btoa(JSON.stringify({ u: data.unlocked, g: data.games, w: data.wins, t: data.takeaways, b: data.bestTds, l: data.bestLongWin })); }
+  // Reset and restore both keep a copy of what they replace, so UNDO always takes back the last one
+  // (and UNDO twice swaps back again).
+  const undoKey = () => (dev ? DEV_KEY : KEY) + "-before-reset";
+  function keepUndo() { try { localStorage.setItem(undoKey(), JSON.stringify(data)); } catch (e) {} }
+  function reset() { keepUndo(); data = fresh(); save(); }
+  // UTF-8 safe base64 (team or player names with any character can't break the backup).
+  const enc = s => btoa(unescape(encodeURIComponent(s)));
+  const dec = s => { const raw = atob(s); try { return decodeURIComponent(escape(raw)); } catch (e) { return raw; } }; // older codes were plain
+  function code() { return "DADMO-" + enc(JSON.stringify({ u: data.unlocked, g: data.games, w: data.wins, t: data.takeaways, b: data.bestTds, l: data.bestLongWin, v: data.vs || {} })); }
+  // Only well-formed matchup records come back (a damaged one is dropped, not crashed on).
+  function cleanVs(v) {
+    const out = {}; if (!v || typeof v !== "object") return null;
+    for (const [k, s] of Object.entries(v)) if (s && typeof s === "object" && +s.n > 0 && s.last && typeof s.last === "object" && s.w && typeof s.w === "object") out[k] = s;
+    return out;
+  }
   function restore(str) {
     if (String(str).trim().toUpperCase() === "UNDO") {
-      try { const d = JSON.parse(localStorage.getItem((dev ? DEV_KEY : KEY) + "-before-reset")); if (!d) return false; data = Object.assign(fresh(), d); save(); return true; } catch (e) { return false; }
+      try { const d = JSON.parse(localStorage.getItem(undoKey())); if (!d) return false; keepUndo(); data = Object.assign(fresh(), d); save(); return true; } catch (e) { return false; }
     }
     try {
-      const o = JSON.parse(atob(String(str).trim().replace(/^DADMO-/, "")));
+      const o = JSON.parse(dec(String(str).trim().replace(/^DADMO-/, "").replace(/\s+/g, "")));
       if (!Array.isArray(o.u)) return false;
-      data = Object.assign(fresh(), { unlocked: o.u.filter(id => TEAMS.byId[id]), games: +o.g || 0, wins: +o.w || 0, takeaways: +o.t || 0, bestTds: +o.b || 0, bestLongWin: !!o.l, vs: data.vs || {} }); // matchup history stays
+      const vs = cleanVs(o.v) || data.vs || {}; // matchup history comes back too (older codes keep what's here)
+      keepUndo();
+      data = Object.assign(fresh(), { unlocked: o.u.filter(id => TEAMS.byId[id]), games: +o.g || 0, wins: +o.w || 0, takeaways: +o.t || 0, bestTds: +o.b || 0, bestLongWin: !!o.l, vs });
       save(); return true;
     } catch (e) { return false; }
   }

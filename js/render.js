@@ -408,7 +408,7 @@ const RENDER = (() => {
     if (G.phase !== "live" || !pl) return;
     const rep = G.rep;
     if (rep) {
-      const x = sx((rep.car.x + rep.def.x) / 2), y = sy(Math.min(rep.car.y, rep.def.y)) - 56;
+      const [x, y] = barSpot(sx((rep.car.x + rep.def.x) / 2), sy(Math.min(rep.car.y, rep.def.y)));
       const end = rep.tc + 0.12;
       if (G.human[rep.car.team] && G.control[rep.car.team] === rep.car)
         timing_(x, y, rep.t0, end, pl.t, rep.ideal, rep.wOff, CFG.TEAMS[rep.car.team].trim, "RUN");
@@ -417,11 +417,18 @@ const RENDER = (() => {
     }
     const b = G.ball;
     if (b && b.state === "air" && b.ideal != null) {
-      const x = sx(b.tx), y = sy(b.ty) - 56, end = b.T + 0.05;
+      const [x, y] = barSpot(sx(b.tx), sy(b.ty)), end = b.T + 0.05;
       const off = G.poss, def = off === 1 ? 2 : 1, cp = G.control[def];
       if (G.human[off] && b.intended) timing_(x, y, 0, end, b.t, b.ideal, b.wOff, CFG.TEAMS[off].trim, "CATCH");
-      if (G.human[def] && cp && Math.hypot(cp.x - b.tx, cp.y - b.ty) < 10) timing_(x, y + 11, 0, end, b.t, b.ideal, GAME.windowFor(cp.r.cov), CFG.TEAMS[def].trim, "JUMP");
+      if (G.human[def] && cp && (b.defP === cp || Math.hypot(cp.x - b.tx, cp.y - b.ty) < CFG.CAL.JUMP_RANGE)) timing_(x, y + 11, 0, end, b.t, b.ideal, GAME.windowFor(cp.r.cov), CFG.TEAMS[def].trim, "JUMP");
     }
+  }
+  // Two bars stack 11px apart above the play. Near the top of the field there isn't room above,
+  // so they go just below the players instead; sideways they stay clear of the screen edges (label included).
+  function barSpot(x, ySpot) {
+    let y = ySpot - 56;
+    if (y < 26) y = ySpot + 22;
+    return [clamp(x, 80, VW - 38), clamp(y, 26, VH - 14 - 22)];
   }
   function timing_(x, y, t0, t1, now, ideal, w, color, label) { timingBar(x, y, t0, t1, now, ideal, w, color, null, label); }
 

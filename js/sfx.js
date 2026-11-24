@@ -24,6 +24,7 @@ const SFX = (() => {
     src.connect(g).connect(a.destination); src.start(a.currentTime + t0);
   }
   return {
+    ctx, // shared with the music
     // bright four-note chime: cheat code, unlocks
     chime() { [523, 659, 784, 1047].forEach((f, i) => tone(f, i * 0.09, 0.35, "square", 0.06)); tone(1568, 0.36, 0.5, "triangle", 0.05); },
     // helmets crashing together

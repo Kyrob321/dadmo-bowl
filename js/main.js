@@ -124,8 +124,8 @@
   const UNLOCK = { id: null, t: 0 };
   const DEV_ITEMS = ["DEV: 4TH & 1 AT OPP 30", "DEV: 2-MIN DRILL, DOWN 4", "DEV: GOAL LINE, 1ST & GOAL", "DEV: RED ZONE DEFENSE"];
   // Pause menu: either player can pause (PAUSE on the phone, P / Esc / Enter on the keyboard).
-  const BASE_ITEMS = ["RESUME", "NEW GAME", "QUIT TO TITLE", "WEATHER: ON", "BACK UP PROGRESS", "RESTORE PROGRESS", "RESET PROGRESS"];
-  const pauseItems = () => BASE_ITEMS.map(i => i.startsWith("WEATHER") ? "WEATHER: " + (WEATHER.enabled() ? "ON" : "OFF") : i === "RESET PROGRESS" && pause.armReset ? "RESET? PICK AGAIN TO ERASE" : i === "NEW GAME" && pause.armNew ? "NEW GAME? PICK AGAIN" : i).concat(dev ? DEV_ITEMS : []);
+  const BASE_ITEMS = ["RESUME", "NEW GAME", "QUIT TO TITLE", "WEATHER: ON", "MUSIC: ON", "BACK UP PROGRESS", "RESTORE PROGRESS", "RESET PROGRESS"];
+  const pauseItems = () => BASE_ITEMS.map(i => i.startsWith("WEATHER") ? "WEATHER: " + (WEATHER.enabled() ? "ON" : "OFF") : i.startsWith("MUSIC") ? "MUSIC: " + (MUSIC.enabled() ? "ON" : "OFF") : i === "RESET PROGRESS" && pause.armReset ? "RESET? PICK AGAIN TO ERASE" : i === "NEW GAME" && pause.armNew ? "NEW GAME? PICK AGAIN" : i).concat(dev ? DEV_ITEMS : []);
   let PAUSE_ITEMS = BASE_ITEMS;
   const pause = { on: false, sel: 0, by: 1, lastHuman: null, msg: "", armReset: false };
 
@@ -145,6 +145,11 @@
   let lastPlays = 0, lastPhase = null;
   const wasConn = { 1: false, 2: false }, dropped = { 1: false, 2: false };
 
+  if (window.PADS) window.PADS.onRestore = (s, str) => {
+    const ok = PROGRESS.restore(str);
+    pause.msg = ok ? "PROGRESS RESTORED! (UNDO PUTS IT BACK)" : "THAT CODE DIDN'T WORK";
+    return { kind: "result", ok, text: ok ? "PROGRESS RESTORED! (CHANGED YOUR MIND? RESTORE AGAIN WITH UNDO)" : "THAT CODE DIDN'T WORK. CHECK IT WAS COPIED WHOLE." };
+  };
   function pauseStep() {
     for (const s of [1, 2]) {
       if (INPUT.pressed(s, "start")) { pause.on = false; return; }
@@ -154,14 +159,19 @@
       if (INPUT.pressed(s, "z") || INPUT.pressed(s, "x")) {
         const pick = PAUSE_ITEMS[pause.sel];
         // menu items that keep the pause screen open
+        if (pick.startsWith("MUSIC")) { const m = MUSIC.toggle(); PAUSE_ITEMS = pauseItems(); pause.msg = m ? "MUSIC ON" : "MUSIC OFF (PRESS M ON THE LAPTOP ANYTIME)"; return; }
         if (pick.startsWith("WEATHER")) { WEATHER.toggle(); PAUSE_ITEMS = pauseItems(); pause.msg = WEATHER.enabled() ? "WEATHER ON: " + WEATHER.label() : "WEATHER OFF FOR NOW"; return; }
+        // Backup and restore happen on the phone that picked them (copy into Notes / paste back in).
+        // From the laptop keyboard (no phone), they fall back to a laptop dialog.
+        const phone = window.PADS && window.PADS.connected(s) && !INPUT.kbHeld(s, "z") && !INPUT.kbHeld(s, "x");
         if (pick === "BACK UP PROGRESS") {
-          // The whole code in a laptop dialog, already selected, ready to copy into a note.
           const code = PROGRESS.code();
+          if (phone) { window.PADS.sheet(s, { kind: "backup", code }); sheetOpen[s] = true; pause.msg = "BACKUP CODE SENT TO P" + s + "'S PHONE"; return; }
           window.prompt("Your Dadmo Bowl backup code. Copy it (Cmd+C) and keep it in a note:", code);
           pause.msg = "BACKUP CODE SHOWN ON THE LAPTOP"; return;
         }
         if (pick === "RESTORE PROGRESS") {
+          if (phone) { window.PADS.sheet(s, { kind: "restore" }); sheetOpen[s] = true; pause.msg = "PASTE THE CODE ON P" + s + "'S PHONE"; return; }
           const str = window.prompt("Paste your Dadmo Bowl backup code (or type UNDO to bring back progress from before the last reset):");
           pause.msg = str == null ? "" : PROGRESS.restore(str) ? "PROGRESS RESTORED!" : "THAT CODE DIDN'T WORK";
           return;
@@ -198,12 +208,13 @@
     if (!G.human[t]) return L;
     const offense = t === G.poss, car = G.ball && G.ball.state === "held" ? G.ball.holder : null;
     const move = { up: "MOVE", down: "MOVE", left: "MOVE", right: "MOVE" };
+    const boost = { b: G.boostAt && G.time - G.boostAt[t] < CFG.CAL.BOOST_CD ? "BOOST…" : "BOOST" }; // the defense BOOST button ("…" = dim while it recharges)
     if (pause.on) return Object.assign(L, { x: "SELECT", z: "SELECT", up: "UP", down: "DOWN" });
     if (G.mash) return G.mash.pause > 0 ? Object.assign(L, { x: "READY", z: "READY" }) : Object.assign(L, { x: "MASH!", z: "MASH!" });
     switch (G.phase) {
       case "presnap":
         if (offense) return Object.assign(L, { x: "RUN", z: "PASS", up: G.down === 4 ? (G.los >= 62 ? "FG" : "PUNT") : "" });
-        return Object.assign(L, { x: "SWITCH", z: "TACKLE", stick: true }, move);
+        return Object.assign(L, { x: "SWITCH", z: "TACKLE", stick: true, b: "BOOST…" }, move); // shown (dim) so the buttons don't jump at the snap
       case "dead": case "flight": return null; // keep whatever the phone shows between plays
       case "kick": return G.kick.team === t ? Object.assign(L, { x: "KICK", z: "KICK" }) : L;
       case "over": return G.overT > 2.5 ? Object.assign(L, { z: "NEW GAME" }) : L;
@@ -216,16 +227,37 @@
         }
         if (G.ball.state === "air") {
           if (G.ball.intended && G.ball.intended.team === t) return Object.assign(L, { z: "CATCH" });
-          return Object.assign(L, { x: "SWITCH", z: "JUMP", stick: true }, move);
+          return Object.assign(L, { x: "SWITCH", z: "JUMP", stick: true }, move, boost);
         }
-        return Object.assign(L, { x: "SWITCH", z: "TACKLE", stick: true }, move);
+        return Object.assign(L, { x: "SWITCH", z: "TACKLE", stick: true }, move, boost);
       }
     }
     return L;
   }
 
+  // Music follows the screen: the title anthem, the team-select loop, the game loop with a jingle on every
+  // touchdown and a fanfare at the final whistle. Quieter while paused.
+  let musEv = 0, musOver = false, musGame = null;
+  function music() {
+    if (typeof MUSIC === "undefined") return;
+    if (mode === "title") return MUSIC.play("title");
+    if (mode === "select" || mode === "versus" || mode === "walkout") return MUSIC.play("select");
+    if (mode === "unlock") return MUSIC.play(null);
+    const G = GAME.state;
+    if (musGame !== G) { musGame = G; musEv = G.events.length; musOver = false; }
+    MUSIC.duck(pause.on);
+    for (; musEv < G.events.length; musEv++) if (G.events[musEv].type === "td" && G.phase !== "over") MUSIC.jingle("td", "game");
+    if (G.phase === "over") { if (!musOver) { musOver = true; MUSIC.jingle("final", null); } return; }
+    MUSIC.play("game");
+  }
+  addEventListener("keydown", e => { if (e.code === "KeyM") { MUSIC.toggle(); PAUSE_ITEMS = pauseItems(); } });
+
+  // A backup/restore sheet left open on a phone closes once the game is unpaused.
+  const sheetOpen = { 1: false, 2: false };
   function step(dt) {
     INPUT.poll();
+    music();
+    if (!pause.on || mode !== "game") for (const s of [1, 2]) if (sheetOpen[s]) { sheetOpen[s] = false; if (window.PADS && window.PADS.sheet) window.PADS.sheet(s, { kind: "close" }); }
     if (window.PADS && window.PADS.labels) for (const s of [1, 2]) if (window.PADS.connected(s)) { const L = labelsFor(s); if (L) window.PADS.labels(s, L); }
     if (window.PADS && window.PADS.pick) for (const s of [1, 2]) if (window.PADS.connected(s)) window.PADS.pick(s, pickFor(s));
     if (mode === "title") {

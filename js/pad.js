@@ -64,6 +64,11 @@
         showStick(!!msg.stick);
         document.querySelector('.b[data-k="x"]').classList.toggle("off", !msg.x);
         document.querySelector('.b[data-k="z"]').classList.toggle("off", !msg.z);
+        const bb = $("boostBtn"); bb.hidden = !msg.b; bb.textContent = "BOOST"; bb.classList.toggle("off", !msg.b || msg.b.endsWith("…"));
+      } else if (msg.t === "sheet") {
+        // The link can drop a message, so the TV repeats this until the phone says it got it.
+        send({ t: "ack", id: msg.id });
+        if (msg.id !== lastSheet) { lastSheet = msg.id; showSheet(msg); }
       } else if (msg.t === "pick") {
         showPick(msg);
       } else if (msg.t === "pong") {
@@ -74,6 +79,44 @@
       }
     });
     conn.on("close", () => { clearInterval(pingTimer); if (left) return; setStatus("DROPPED · RETRYING", "bad"); retryTimer = setTimeout(connect, 1500); });
+  }
+
+  // Backup / restore, opened from the TV's pause menu: the code lives on the phone, where it can be copied
+  // into Notes or pasted back in (the laptop may be across the room in full screen).
+  let lastSheet = null, restoreTimer = null;
+  function showSheet(m) {
+    const sh = $("sheet"), ta = $("sheetCode"), go = $("sheetGo"), note = $("sheetNote");
+    if (m.kind === "close") { clearInterval(restoreTimer); sh.hidden = true; ta.blur(); return; }
+    if (m.kind === "result") { clearInterval(restoreTimer); note.textContent = m.text || ""; note.style.color = m.ok ? "" : "#ef5a45"; if (m.ok) setTimeout(() => { sh.hidden = true; }, 1800); return; }
+    touchKey.clear(); if (stick.id !== null) stickRelease(); refresh(); // nothing stays held behind the sheet
+    note.textContent = ""; note.style.color = ""; sh.hidden = false;
+    if (m.kind === "backup") {
+      $("sheetMsg").textContent = "YOUR BACKUP CODE. TAP COPY, THEN PASTE IT INTO NOTES TO KEEP IT SAFE.";
+      ta.value = m.code || ""; ta.readOnly = true; go.textContent = "COPY";
+      go.onclick = () => {
+        const done = () => { note.style.color = ""; note.textContent = "COPIED! NOW PASTE IT INTO NOTES."; };
+        const manual = () => { note.style.color = "#ffb627"; note.textContent = "PRESS AND HOLD THE CODE, TAP SELECT ALL, THEN COPY."; };
+        // Copy inside the tap itself (iOS only allows it there): select the text, then try the old way first.
+        ta.readOnly = false; ta.focus(); ta.select(); ta.setSelectionRange(0, ta.value.length);
+        let ok = false; try { ok = document.execCommand("copy"); } catch (e) {}
+        ta.readOnly = true;
+        if (ok) return done();
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(ta.value).then(done, manual); else manual();
+      };
+    } else {
+      $("sheetMsg").textContent = "PASTE YOUR BACKUP CODE BELOW (OR TYPE UNDO TO BRING BACK PROGRESS FROM BEFORE THE LAST RESET).";
+      ta.value = ""; ta.readOnly = false; go.textContent = "RESTORE";
+      go.onclick = () => {
+        const v = ta.value.trim(); if (!v) { ta.focus(); return; }
+        note.style.color = ""; note.textContent = "SENDING…";
+        // Sent again every second until the TV answers (the link can drop a message); the TV only uses it once.
+        const rid = Date.now() + "" + Math.random(); let n = 0;
+        clearInterval(restoreTimer); send({ t: "restore", code: v, rid });
+        restoreTimer = setInterval(() => { if (++n > 6) { clearInterval(restoreTimer); note.style.color = "#ef5a45"; note.textContent = "NO ANSWER FROM THE TV. TAP RESTORE AGAIN."; return; } send({ t: "restore", code: v, rid }); }, 1000);
+      };
+      setTimeout(() => ta.focus(), 50);
+    }
+    $("sheetClose").onclick = () => { clearInterval(restoreTimer); sh.hidden = true; ta.blur(); };
   }
 
   // Team select: a private card in the middle of the pad. Nobody else can see what you're browsing.
@@ -157,6 +200,13 @@
       const d = Math.hypot(x - (r.left + r.width / 2), y - (r.top + r.height / 2)) - w / 2;
       if (d < bd) { bd = d; best = b.dataset.k; size = w; }
     }
+    const bb = $("boostBtn"); // the wide BOOST bar (defense only), measured in its own tilted frame
+    if (!bb.hidden) {
+      const r = bb.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2, a = 12 * Math.PI / 180;
+      const lx = (x - cx) * Math.cos(a) - (y - cy) * Math.sin(a), ly = (x - cx) * Math.sin(a) + (y - cy) * Math.cos(a); // undo the -12° tilt
+      const d = Math.hypot(Math.max(Math.abs(lx) - bb.offsetWidth / 2, 0), Math.max(Math.abs(ly) - bb.offsetHeight / 2, 0));
+      if ((d === 0 && bd > 0) || (d < 10 && d + 14 < bd)) return "b"; // on the bar itself = BOOST; near its edge, X and Z win close calls
+    }
     return bd < Math.max(50, size * 0.5) ? best : null; // reach: about half a button past its edge
   }
   // A quick tap still counts: every press stays down at least MIN_HOLD ms, so the TV (60 frames a second)
@@ -194,6 +244,7 @@
 
   function onTouch(e) {
     e.preventDefault();
+    if (!$("sheet").hidden) { if (touchKey.size) { touchKey.clear(); refresh(); } return; } // nothing presses behind the sheet
     wake();
     // A finger the phone no longer reports (a missed lift) can't keep a button held.
     const live = new Set([...e.touches].map(t => t.identifier));

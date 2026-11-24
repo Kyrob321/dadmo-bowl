@@ -74,6 +74,15 @@
         if (msg.q != null) { if (conn._q != null && msg.q <= conn._q) return; conn._q = msg.q; } // stale or repeated
         inputs[conn._slot] = msg.k || {};
         draw(conn._slot);
+      } else if (msg.t === "ack" && conn._slot) {
+        const p = pending[conn._slot]; if (p && p.id === msg.id) pending[conn._slot] = null;
+      } else if (msg.t === "restore" && conn._slot && conns[conn._id] === conn) {
+        // The phone repeats this until it hears back; use it once, and just repeat the answer after that.
+        const s = conn._slot, code = String(msg.code || "");
+        if (msg.rid && doneRid[s] && doneRid[s].rid === msg.rid) { window.PADS.sheet(s, doneRid[s].res); return; }
+        const res = code.length > 400000 ? { kind: "result", ok: false, text: "THAT CODE IS TOO LONG. CHECK IT WAS COPIED RIGHT." }
+          : window.PADS.onRestore ? window.PADS.onRestore(s, code) : null;
+        if (res) { doneRid[s] = { rid: msg.rid, res }; window.PADS.sheet(s, res); }
       } else if (msg.t === "ping") {
         conn.send({ t: "pong", ts: msg.ts });
       } else if (msg.t === "rtt" && conn._slot) {
@@ -97,6 +106,10 @@
 
   // The game reads phone buttons from here (keyboard lives in input.js).
   const lastLabels = {}, lastPick = {};
+  // Backup/restore sheets: repeated every 400 ms until the phone acks (the link may drop a message).
+  const pending = { 1: null, 2: null }, doneRid = {};
+  let sheetSeq = 0;
+  setInterval(() => { for (const s of [1, 2]) { const p = pending[s]; if (!p) continue; if (++p.tries > 25) { pending[s] = null; continue; } sendTo(s, p.msg); } }, 400);
   function sendTo(s, msg) { const c = slots[s] && conns[slots[s]]; if (c && c.open) c.send(msg); }
   window.PADS = {
     code: () => code,
@@ -104,6 +117,8 @@
     // Only sends when the labels actually change (and always to a phone that just joined).
     // Team select: what this phone (and only this phone) is looking at.
     pick(s, P) { const k = JSON.stringify(P); if (lastPick[s] === k) return; lastPick[s] = k; sendTo(s, Object.assign({ t: "pick" }, P)); },
+    sheet(s, m) { const msg = Object.assign({ t: "sheet", id: ++sheetSeq }, m); pending[s] = { msg, tries: 0 }; sendTo(s, msg); },
+    onRestore: null,
     labels(s, L) { const k = JSON.stringify(L); if (lastLabels[s] === k) return; lastLabels[s] = k; sendTo(s, Object.assign({ t: "labels" }, L)); },
   };
 

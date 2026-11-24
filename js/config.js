@@ -40,5 +40,7 @@ const CFG = {
     // Tackle assist for the human defender
     FIRE_BOOST: 8, // on fire: + to every rating
     LUNGE_TIME: 0.22, LUNGE_SPEED: 1.7, DIVE_RANGE: 2.0, DIVE_Q: 0.25, ASSIST_RANGE: 7, ASSIST: 0.45, HUMAN_REP_RANGE: 2.1,
+    // Pass-defense assist for the human defender (same idea as the tackle assist), and the defense BOOST button
+    JUMP_RANGE: 8, BREAK_SPEED: 1.0, JUMP_REACH: 0.5, AUTO_SWITCH: 6, AUTO_NEAR: 3.5, BOOST_TIME: 0.7, BOOST_CD: 3,
   },
 };

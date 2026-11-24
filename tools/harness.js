@@ -137,3 +137,46 @@ window.gradeStars = function () {
   }
   return rows;
 };
+
+// ---------- human pass defense (phase T8) ----------
+// A bot plays team 2's human defender against the CPU offense (team 1). mode: "cpu" (computer defends),
+// "perfect" (JUMP on the ideal moment) or "early" (JUMP 0.3 s early). Team 2 is human only while defending.
+window.passD = function (mode, games, teams) {
+  const G = GAME.state, V = INPUT.virt[2], K = CFG.CAL;
+  const tally = { att: 0, comp: 0, ints: 0, contest: 0, jumps: 0, err: null };
+  const steer = (p, x, y) => { const dx = x - p.x, dy = y - p.y, l = Math.hypot(dx, dy); if (l < 0.3) { V.ax = V.ay = 0; return; } V.ax = dx / l; V.ay = dy / l; };
+  try {
+    for (let g = 0; g < games; g++) {
+      GAME.newGame({ 1: false, 2: mode !== "cpu" }, teams || { 1: "krush", 2: "krush" });
+      let wasAir = null, guard = 0;
+      while (G.phase !== "over" && guard++ < 60 * 3600) {
+        const defending = mode !== "cpu" && G.poss === 1 && (G.phase === "presnap" || G.phase === "live") && !G.mash;
+        G.human[2] = defending; V.ax = V.ay = 0; V.z = false;
+        const b = G.ball, p = G.control[2];
+        if (defending && G.phase === "live" && p && p.team === 2) {
+          if (b && b.state === "air") {
+            if (mode !== "press") steer(p, b.tx, b.ty); // "press": times JUMP like "good" but never steers
+            if ((mode === "good" || mode === "press") && b.t < 0.25) { V.ax = V.ay = 0; } // a person needs a moment to see the throw
+            if ((mode === "good" || mode === "press") && b._at == null) b._at = b.ideal + (Math.random() * 2 - 1) * 0.9 * GAME.windowFor(p.r.cov); // lands in the GOOD window, rarely PERFECT
+            const at = mode === "early" ? b.ideal - 0.3 : (mode === "good" || mode === "press") ? b._at : b.ideal;
+            if (b.defT == null && b.t >= at) V.z = true;
+          } else {
+            let best = null, bd = 1e9; // cover the nearest receiver
+            for (const o of G.players) if (o.team === 1 && o.route) { const d = Math.hypot(o.x - p.x, o.y - p.y); if (d < bd) { bd = d; best = o; } }
+            if (best) steer(p, best.x + 1, best.y);
+          }
+        }
+        INPUT.poll(); GAME.update(1 / 60);
+        const nb = G.ball;
+        if (wasAir && (!nb || nb.state !== "air")) {
+          if (G.human[2] && wasAir.defP) { tally.jumps++; const j = wasAir.defP; if (Math.hypot(j.x - wasAir.tx, j.y - wasAir.ty) < K.CC_RADIUS + K.JUMP_REACH) tally.contest++; }
+        }
+        wasAir = nb && nb.state === "air" && G.poss === 1 ? nb : null;
+      }
+      const s = G.stats.by[1]; tally.att += s.att || 0; tally.comp += s.comp || 0; tally.ints += s.ints || 0;
+    }
+  } catch (e) { tally.err = String(e) + " " + (e.stack || "").split("\n")[1]; }
+  V.ax = V.ay = 0; V.z = false;
+  const pct = (a, b) => Math.round(1000 * a / Math.max(1, b)) / 10;
+  return { mode, games, att: tally.att, comp: pct(tally.comp, tally.att), int: pct(tally.ints, tally.att), contest: pct(tally.contest, tally.att), jumps: tally.jumps, err: tally.err };
+};

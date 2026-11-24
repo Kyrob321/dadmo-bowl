@@ -104,3 +104,36 @@ window.EXPECT_LEAGUE.ypa = [6.6, 8.7];
 window.EXPECT_LEAGUE_NO_POWERS = { ypa: [6.6, 7.8], missTk: [9, 14], ptsDrive: [1.9, 2.5] }; // measured 7.51 / 12.6 / 2.33
 // Same games with each home stadium's weather on: a small drop is expected (snow, rain, wind cost offense).
 window.EXPECT_LEAGUE_WEATHER_DELTA = { ptsDrive: [-0.35, 0.05] };
+
+// T8 human pass defense (written before running). A bot plays the human defender: covers the nearest receiver
+// before the throw, steers at the landing spot while the ball is up, and presses JUMP. Measured per pass attempt
+// against the same CPU offense, compared with the computer defending.
+//  - PERFECT bot (presses on the ideal moment): should clearly beat the computer, but not shut passing down.
+//  - EARLY bot (presses 0.3 s early, a bad press): breaking on the ball must not hand out a free win.
+//  - The human defender should actually be the one in the contest often once he jumps.
+window.EXPECT_PASS_D = {
+  cpuComp: [58, 70],            // computer defending, same as the league (about 63)
+  perfectCompDrop: [5, 15],     // PERFECT bot: completion % this many points below the computer
+  perfectInt: [3, 8],           // PERFECT bot: INTs per 100 attempts (computer about 2.2)
+  perfectContest: [25, 65],     // PERFECT bot: % of attempts where his jumper is the defender in the contest
+  earlyCompDelta: [-6, 6],      // EARLY bot: completion % within this of the computer
+};
+// ADDED after the first run (the PERFECT bot crushed passing: 26% comp, 18% INT, in the contest 86%). A person
+// won't steer and press perfectly, so a GOOD bot was added (a 0.25 s reaction, presses spread over the timing
+// window). Written before running it: completion 3-12 points below the computer, INT 2.5-6, in the contest 20-55%.
+window.EXPECT_PASS_D.goodCompDrop = [3, 12]; window.EXPECT_PASS_D.goodInt = [2.5, 6]; window.EXPECT_PASS_D.goodContest = [20, 55];
+// RESULT (30 games per mode, Krush vs Krush, written after testing). First version (jump range 12, break speed
+// 1.25, auto-switch to whoever was nearest the throw): PERFECT 26% comp / 18% INT, GOOD 45% / 8.5% — far too strong.
+// The auto-switch was the big lever (without it GOOD was 59% / 2-4%, barely better than the computer). Final:
+// auto-switch only to a defender already within 3.5 yd of the throw, jump/break range 8, break at normal sprint,
+// 0.5 yd extra reach. Measured: computer 65.9% comp / 2.3 INT; PERFECT drop 14.9, INT 5.8, in contest 31%;
+// GOOD drop 11.3, INT 4.6, in contest 20%; EARLY -2.7 vs computer (INT 1.7). All 8 checks PASS (two near the edge).
+// Before the change the same bots measured PERFECT 57.6% / 4.2 INT, EARLY 62.7% (old code, same harness).
+
+// T8 review follow-up (written before running): a PRESS bot times JUMP like GOOD but never steers (only the break
+// assist moves him), and the jumper now takes over the contest only if he's about as close as the nearest
+// defender. Expect: PRESS still beats the computer a little (comp drop 0..8, INT 1.5..5); GOOD and PERFECT stay in
+// their ranges; EARLY stays within -6..+6 (a bad press can no longer replace a closer CPU defender).
+window.EXPECT_PASS_D.pressCompDrop = [0, 8]; window.EXPECT_PASS_D.pressInt = [1.5, 5];
+// RESULT after the review fixes (30 games each): computer 66.1% / 1.7 INT; PERFECT drop 14.8, INT 5.7, contest 31%;
+// GOOD drop 8.2, INT 4.3, contest 22%; EARLY -3.6; PRESS (no steering) drop 2.6, INT 3.0, contest 10%. All 10 PASS.
