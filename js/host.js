@@ -9,7 +9,8 @@
 
   function padUrl(c) {
     const base = location.href.replace(/[^/]*([?#].*)?$/, "");
-    return base + "pad.html?room=" + c;
+    const x = new URLSearchParams(location.search).get("xmas"); // testing: phones follow a forced holiday on/off
+    return base + "pad.html?room=" + c + (x === "1" || x === "0" ? "&xmas=" + x : "");
   }
 
   function showRoom() {

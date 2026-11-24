@@ -93,10 +93,15 @@ body.playing #xsnow { display: none; } /* the game draws its own snow on the fie
 /* a pixel Santa hat on the first letter of the logo */
 .xmas .logo { position: relative; }
 .xmas .logo::before { content: ""; position: absolute; left: -.22em; top: -.5em; width: .95em; height: .8em; transform: rotate(-12deg); background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 15' shape-rendering='crispEdges'><rect x='2' y='6' width='11' height='4' fill='%23d8342c'/><rect x='4' y='4' width='8' height='2' fill='%23d8342c'/><rect x='7' y='2' width='6' height='2' fill='%23d8342c'/><rect x='11' y='1' width='3' height='1' fill='%23d8342c'/><rect x='13' y='2' width='2' height='2' fill='%23d8342c'/><rect x='2' y='6' width='3' height='4' fill='%23a81f1a'/><rect x='14' y='3' width='3' height='3' fill='%23fff'/><rect x='0' y='10' width='15' height='4' fill='%23f3efe4'/><rect x='0' y='14' width='15' height='1' fill='%23000' opacity='.5'/></svg>") center / contain no-repeat; image-rendering: pixelated; pointer-events: none; }
-.xmas-msg { margin: 0; font-size: clamp(9px, 1.2vw, 18px); color: #ff5a5a; text-shadow: 2px 2px 0 #000; animation: xmsg 1.6s steps(2) infinite; }
-@keyframes xmsg { 50% { color: #5ee08a; } }
+.xmas-msg { margin: 0; font-size: clamp(9px, 1.2vw, 18px); color: var(--amber); text-shadow: 2px 2px 0 #000; animation: xmsg 1.6s steps(2) infinite; }
+@keyframes xmsg { 50% { color: #ffffff; } }
 
 /* title-screen music switch */
 .music-btn { font: clamp(8px, 1vw, 14px) "Press Start 2P", monospace; background: #0b1422; color: var(--chalk); border: 3px solid var(--chalk); padding: .7em 1em; cursor: pointer; box-shadow: 3px 3px 0 #000; }
 .music-btn.off { color: #9fb1c5; border-color: #55627a; }
 .music-btn:focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; }
+.start-row { display: flex; align-items: center; justify-content: center; gap: 2vw; flex-wrap: wrap; }
+.start-row .start { margin: 0; }
+.xmas .title { gap: 1.5vh; } /* room for the holiday line at 720p */
+.xmas .title { gap: 1.3vh; padding-top: calc(2vh + 24px); } /* room above the logo for its Santa hat */
+.xmas .logo { font-size: clamp(28px, 5vw, 84px); }

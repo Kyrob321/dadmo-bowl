@@ -94,7 +94,7 @@ const MUSIC = (() => {
     // SELECT / VERSUS: "Deck the Halls" (traditional), easygoing.
     select: { bpm: 132, loop: true, ch: {
       lead: "C6 - - Bb5 A5 - G5 - | F5 - G5 - A5 - F5 - | G5 A5 Bb5 G5 A5 - - G5 | F5 - E5 - F5 - - - |" +
-            " G5 - - A5 Bb5 - G5 - | A5 - - Bb5 C6 - G5 - | A5 B5 C6 D6 E6 F6 E6 D6 | C6 - - - - - . . |" +
+            " G5 - - A5 Bb5 - G5 - | A5 - - Bb5 C6 - G5 - | A5 B5 C6 - D6 E6 F6 - | E6 - D6 - C6 - - - |" +
             " C6 - - Bb5 A5 - G5 - | F5 - G5 - A5 - F5 - | Bb5 Bb5 Bb5 Bb5 A5 - - G5 | F5 - E5 - F5 - - - ",
       harm: stab("A4") + " | " + stab("A4") + " | " + stab("Bb4") + " | " + stab("A4") + " | " +
             stab("E5") + " | " + stab("F5") + " | " + stab("G5") + " | " + stab("E5") + " | " +
@@ -113,9 +113,9 @@ const MUSIC = (() => {
     } },
     // FINAL WHISTLE: "Joy to the World" (traditional), the opening line and a big last chord.
     final: { bpm: 132, loop: false, ch: {
-      lead: "C6 - - B5 A5 - G5 - | - F5 E5 - D5 - C5 - | - - - - - - . . | C5 E5 G5 C6 - - - - | . . . .",
-      harm: "E5 - - - F5 - E5 - | - A4 G4 - F4 - E4 - | - - - - - - . . | G4 C5 E5 G5 - - - - | . . . .",
-      bass: "C3 - - - F2 - C3 - | - F2 - - G2 - C3 - | - - - - - - . . | C3 - G2 - C3 - - - | . . . .",
+      lead: "C6 - B5 A5 G5 - - F5 | E5 - D5 - C5 - - - | . . . . . . . . | C5 E5 G5 C6 - - - - | . . . .",
+      harm: "E5 - G5 F5 E5 - - A4 | G4 - F4 - E4 - - - | . . . . . . . . | G4 C5 E5 G5 - - - - | . . . .",
+      bass: "C3 - - - C3 - - F2 | G2 - G2 - C3 - - - | . . . . . . . . | C3 - G2 - C3 - - - | . . . .",
       drum: "x . . . k j s j | k j s j k j s j | k . . . . . . . | k s s s x . . . | . . . .",
     } },
   };

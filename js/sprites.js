@@ -2,7 +2,7 @@
 // Each pose is a set of joints (in pixels, origin at the feet, facing right). Sprites are
 // rendered once per team / skin / pose / frame / facing into small canvases and reused.
 const SPRITES = (() => {
-  const SW = 26, SH = 32, OX = 13, OY = 30;
+  const SW = 26, SH = 38, OX = 13, OY = 36; // headroom above the helmet for jumps (and the holiday Santa hat)
   const SKINS = [["#f1c27d", "#d29a5c"], ["#c68642", "#9c6530"], ["#8d5524", "#6b3d17"], ["#e0ac69", "#bf8a4a"]];
   const cache = new Map();
 

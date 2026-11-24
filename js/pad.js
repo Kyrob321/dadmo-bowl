@@ -62,6 +62,7 @@
           }
         }
         showStick(!!msg.stick);
+        { const pb = $("pauseBtn"), t = msg.start || "❚❚ PAUSE"; if (pb.textContent !== t) pb.textContent = t; } // on the title it's the music switch
         document.querySelector('.b[data-k="x"]').classList.toggle("off", !msg.x);
         document.querySelector('.b[data-k="z"]').classList.toggle("off", !msg.z);
         const bb = $("boostBtn"); bb.hidden = !msg.b; bb.textContent = "BOOST"; bb.classList.toggle("off", !msg.b || msg.b.endsWith("…"));

@@ -5,7 +5,7 @@ const SCREENS = (() => {
   const ease = k => 1 - Math.pow(1 - Math.min(1, Math.max(0, k)), 3);
 
   // A big pixel helmet (facing right, or left if flip), drawn from rectangles so it scales crisply.
-  function helmet(x, y, s, team, flip, mystery) {
+  function helmet(x, y, s, team, flip, mystery, noHat) {
     const c = R(), t = TEAMS.byId[team] || {}, shell = mystery ? "#3a4658" : t.color, stripe = mystery ? "#55627a" : t.trim;
     const px = (gx, gy, w, h, col) => { c.fillStyle = col; c.fillRect(Math.round(x + (flip ? (14 - gx - w) : gx) * s), Math.round(y + gy * s), w * s, h * s); };
     // outline
@@ -19,7 +19,7 @@ const SCREENS = (() => {
     px(7, 5, 2, 2, "#0c0c0e");
     px(11, 4, 3, 1, "#b9bec4"); px(11, 7, 3, 1, "#b9bec4"); px(13, 4, 1, 5, "#b9bec4");
     if (mystery) text("?", x + 7 * s, y + 2.5 * s, "#ffb627", Math.round(s * 4), "center");
-    else if (typeof HOLIDAY !== "undefined" && HOLIDAY.on) { // Santa hat, flopping toward the back of the helmet
+    else if (!noHat && typeof HOLIDAY !== "undefined" && HOLIDAY.on) { // Santa hat, flopping toward the back of the helmet
       px(0, -4, 11, 1, "#0c0c0e"); px(-1, -6, 7, 2, "#0c0c0e"); px(-3, -9, 5, 4, "#0c0c0e");            // dark outline
       px(1, -3, 10, 2, "#d8342c"); px(0, -5, 6, 2, "#d8342c"); px(-1, -6, 3, 1, "#d8342c");              // red cap, flopping back
       px(7, -3, 4, 1, "#a81f1a"); px(4, -5, 2, 1, "#a81f1a");                                                 // shade
@@ -133,8 +133,8 @@ const SCREENS = (() => {
     // the helmets meet in the middle
     const hx1 = -120 + k * (VW / 2 - 96 + 120), hx2 = VW + 20 - k * (VW + 20 - VW / 2 - 12);
     const bump = t > slam && t < slam + 0.25 ? Math.sin((t - slam) * 60) * 3 : 0;
-    helmet(hx1 - bump, 34, 6, teams[1], false);
-    helmet(hx2 + bump, 34, 6, teams[2], true);
+    helmet(hx1 - bump, 34, 6, teams[1], false, false, true); // no Santa hat here: it would run off the top of the screen
+    helmet(hx2 + bump, 34, 6, teams[2], true, false, true);
     if (t > slam && t < slam + 0.12) { c.fillStyle = "rgba(255,255,255,.85)"; c.fillRect(0, 0, VW, VH); }
     if (t > slam) {
       const s = Math.max(1, 3 - (t - slam) * 8);
@@ -173,7 +173,7 @@ const SCREENS = (() => {
     text("A NEW CHALLENGER", VW / 2, 22, blink ? "#ffb627" : "#ef5a45", 16, "center");
     text("HAS UNLOCKED!", VW / 2, 46, blink ? "#ffb627" : "#ef5a45", 16, "center");
     const k = ease((t - 0.3) / 0.6);
-    helmet(VW / 2 - 42, 80 + (1 - k) * -120, 6, id, false);
+    helmet(VW / 2 - 42, 80 + (1 - k) * -120, 6, id, false, false, true); // no hat: it would cover the headline
     if (t > 0.9) {
       text(tm.name, VW / 2, 160, "#f3efe4", 12, "center");
       text(tm.tag, VW / 2, 182, "#9fb1c5", 8, "center");

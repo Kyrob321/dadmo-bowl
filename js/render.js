@@ -66,8 +66,9 @@ const RENDER = (() => {
     if (typeof HOLIDAY !== "undefined" && HOLIDAY.on) { // a string of Christmas lights on the railing, chasing slowly
       const cols = ["#ff3b3b", "#3bd16f", "#ffd23b", "#4aa8ff"], step = Math.floor(time * 3);
       ctx.fillStyle = "#1c3a22"; ctx.fillRect(0, 37, VW, 1);
-      for (let x = ((-off) % 10 + 10) % 10, i = 0; x < VW; x += 10, i++) {
-        const k = Math.floor((x + off) / 10);
+      const o = camX * PX * 0.5; // unwrapped scroll, so the string never jumps
+      for (let x = -(((o % 10) + 10) % 10); x < VW; x += 10) {
+        const k = Math.round((x + o) / 10);
         ctx.fillStyle = (k + step) % 4 === 0 ? "#fff6c8" : cols[((k % 4) + 4) % 4];
         ctx.fillRect(Math.round(x), 38, 2, 2);
       }

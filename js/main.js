@@ -197,7 +197,7 @@
   // (offense always attacks to the right), so "right" is forward for whoever has the ball.
   function labelsFor(t) {
     const L = { x: "", z: "", up: "", down: "", left: "", right: "" };
-    if (mode === "title") return Object.assign(L, { x: "START", z: "START" });
+    if (mode === "title") return Object.assign(L, { x: "START", z: "START", start: MUSIC.enabled() ? "MUSIC: ON" : "MUSIC: OFF" }); // PAUSE toggles music here
     if (mode === "select") { const P = SEL.slot[t]; if (!P.human) return L;
       return P.locked ? Object.assign(L, { x: "CHANGE" }) : Object.assign(L, { x: "BACK", z: "LOCK IN", left: "PREV", right: "NEXT" },
         SEL.vsCpu ? { up: "HARDER", down: "EASIER" } : { up: "PREV", down: "NEXT" }); }
