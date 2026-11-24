@@ -215,8 +215,8 @@
       case "presnap":
         if (offense) return Object.assign(L, { x: "RUN", z: "PASS", up: G.down === 4 ? (G.los >= 62 ? "FG" : "PUNT") : "" });
         return Object.assign(L, { x: "SWITCH", z: "TACKLE", stick: true, b: "BOOST…" }, move); // shown (dim) so the buttons don't jump at the snap
-      case "dead": case "flight": return null; // keep whatever the phone shows between plays
-      case "kick": return G.kick.team === t ? Object.assign(L, { x: "KICK", z: "KICK" }) : L;
+      case "dead": case "flight": case "onside": return null; // keep whatever the phone shows between plays
+      case "kick": return G.kick.team !== t ? L : G.kick.type === "kickoff" ? Object.assign(L, { x: "ONSIDE", z: "KICK" }) : Object.assign(L, { x: "KICK", z: "KICK" });
       case "over": return G.overT > 2.5 ? Object.assign(L, { z: "NEW GAME" }) : L;
       case "live": {
         const pl = G.play;

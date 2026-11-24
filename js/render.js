@@ -193,9 +193,15 @@ const RENDER = (() => {
         case "lunge": return ["lunge", 0];
         case "dive": return ["dive", 0];
         case "juke": return ["run", Math.floor(k * 6) % 6];
+        // touchdown celebrations (the third value, when there is one, overrides his facing)
+        case "cel_spike": return k < 0.3 ? ["spike", 0] : k < 0.55 ? ["spike", 1] : ["celebrate", Math.floor(time * 5) % 2];
+        case "cel_dance": return ["dance", Math.floor(time * 6) % 4];
+        case "cel_spin": return k < 0.15 ? ["spin", 0] : k < 0.6 ? ["spin", 1, Math.floor(time * 12) % 2 ? 1 : -1] : ["celebrate", Math.floor(time * 5) % 2];
+        case "cel_bow": return k < 0.2 || k > 0.8 ? ["bow", 0] : ["bow", 1];
       }
     }
     if (p.down > 0 || p.lying) return ["down", 0];
+    if (G.play && G.play.strut === p && (G.phase === "live" || G.phase === "dead") && Math.hypot(p.vx, p.vy) > 0.6) return ["highstep", Math.floor(p.stride * 2.4) % 4];
     if (p.jump > 0) return ["jump", 0];
     if (G.phase === "dead" && G.celebrate === p.team) return ["celebrate", Math.floor(time * 5 + p.seed) % 2];
     if (G.phase === "presnap" && (p.role === "OL" || p.role === "DL")) return ["stance", 0];
@@ -211,10 +217,10 @@ const RENDER = (() => {
   function player(G, p, time) {
     const x = sx(p.x), y = sy(p.y);
     if (x < -20 || x > VW + 20) return;
-    const [pose, frame] = poseFor(G, p, time);
+    const [pose, frame, faceOver] = poseFor(G, p, time);
     const flat = pose === "down" || pose === "dive";
     ctx.fillStyle = "rgba(0,0,0,.28)"; ctx.fillRect(x - (flat ? 8 : 5), y - 1, flat ? 16 : 10, 2);
-    let face = p.face || 1;
+    let face = faceOver || p.face || 1;
     if (G.mash && p === G.mash.def) face = G.mash.car.x > p.x ? 1 : -1;
     if (G.mash && p === G.mash.car) face = G.mash.def.x > p.x ? 1 : -1;
     // superstar: a gold star under his feet so you can always find him
@@ -309,6 +315,8 @@ const RENDER = (() => {
       return;
     }
     const b = G.ball; if (!b || b.state === "dead" || (b.state === "held" && !b.holder)) return;
+    // High-stepping or celebrating: the ball is part of his pose (held up high), so don't draw it at his hip.
+    if (b.state === "held" && /^(highstep|spike)$/.test(poseFor(G, b.holder, G.time)[0])) return;
     let x = sx(b.x); const y = sy(b.y);
     if (b.state === "air") { ctx.fillStyle = "rgba(0,0,0,.35)"; ctx.fillRect(x - 2, y - 1, 4, 2); }
     let z = b.state === "air" ? b.z * 3 : 12;
@@ -373,13 +381,14 @@ const RENDER = (() => {
       const car = G.ball && G.ball.state === "held" ? G.ball.holder : null;
       if (G.mash) lines[t] = G.mash.pause > 0 ? "GET READY..." : "MASH X + Z!";
       else if (G.phase === "presnap") lines[t] = offense ? "X RUN  Z PASS" + (G.down === 4 ? (G.los >= 62 ? "  ▲ FIELD GOAL" : "  ▲ PUNT") : "") : "X SWITCH  MOVE";
-      else if (G.phase === "kick") lines[t] = G.kick.team === t ? "Z KICK!" : "";
+      else if (G.phase === "kick") lines[t] = G.kick.team === t ? (G.kick.type === "kickoff" ? "Z KICK!  X ONSIDE" : "Z KICK!") : "";
       else if (G.phase === "live") {
         const pl = G.play;
         if (car && car.team === t) {
           if (car.role === "QB" && pl.type === "pass" && !pl.thrown && !pl.crossed) lines[t] = "X NEXT  Z THROW";
           else {
-            lines[t] = "UP/DN JUKE  FWD TRUCK  BACK STIFF  Z BURST";
+            // two players: the long line would run into the other player's prompt, so it gets shorter
+            lines[t] = G.human[t === 1 ? 2 : 1] ? "JUKE·TRUCK·STIFF  Z BURST" : "UP/DN JUKE  FWD TRUCK  BACK STIFF  Z BURST";
           }
         } else if (G.ball.state === "air") lines[t] = G.ball.intended && G.ball.intended.team === t ? "Z CATCH (TIME IT!)" : "Z JUMP (TIME IT!)";
         else lines[t] = "X SWITCH  Z TACKLE (TIME IT!)";
@@ -528,7 +537,7 @@ const RENDER = (() => {
       ctx.strokeRect(sx(r.x) - 8, sy(r.y) - 26, 16, 27);
     }
     ball(G);
-    for (const t of [1, 2]) if (G.human[t] && G.phase !== "kick" && G.phase !== "over") marker(G, G.control[t], t, time);
+    for (const t of [1, 2]) if (G.human[t] && G.phase !== "kick" && G.phase !== "over" && G.phase !== "onside") marker(G, G.control[t], t, time);
     ctx.restore();
     weather(G, time);
     hud(G); kickMeter(G); mashMeter(G); bannerDraw(G); blurbs(G, time); lowerThird(G, time); prompts(G);

@@ -8,7 +8,8 @@ const CFG = {
   // Tested with person stand-ins: a newer player (+5) wins ~100% on ROOKIE, ~45% on STARTER; Kyle (+15) wins ~80% on PRO, ~35% on ALL-PRO.
   DIFFICULTY: [{ id: "ROOKIE", boost: 0, note: "LEARNING THE GAME" }, { id: "STARTER", boost: 5, note: "A FAIR FIGHT" },
     { id: "PRO", boost: 12, note: "FOR GOOD PLAYERS" }, { id: "ALL-PRO", boost: 16, note: "BRING YOUR BEST" }],
-  QUARTER_SECONDS: 180,   // game clock per quarter; about 15 real minutes for a full game
+  QUARTER_SECONDS: 120,   // game clock per quarter (was 180); about 10 real minutes for a full game
+  IDLE_CLOCK_STOP: 10,    // real seconds the offense can sit before the snap; after that the clock stops until the hike
   ACTION_SPEED: 0.78,     // on-field action speed (1 = original pace); lower = more time to think
   FIELD_W: 53.33,         // yards, sideline to sideline
   FIRST_RECEIVER: 1,      // J Rob gets the ball first
@@ -42,5 +43,14 @@ const CFG = {
     LUNGE_TIME: 0.22, LUNGE_SPEED: 1.7, DIVE_RANGE: 2.0, DIVE_Q: 0.25, ASSIST_RANGE: 7, ASSIST: 0.45, HUMAN_REP_RANGE: 2.1,
     // Pass-defense assist for the human defender (same idea as the tackle assist), and the defense BOOST button
     JUMP_RANGE: 8, BREAK_SPEED: 1.0, JUMP_REACH: 0.5, AUTO_SWITCH: 6, AUTO_NEAR: 3.5, BOOST_TIME: 0.7, BOOST_CD: 3,
+    // A PERFECT press by a person on defense: more takeaways. A perfect JUMP turns more swats into picks
+    // (the INT line moves up by PERFECT_INT); a perfect TACKLE adds PERFECT_FUM to the fumble chance and the
+    // defense recovers PERFECT_FUM_LOST of those.
+    PERFECT_INT: 0.6, PERFECT_FUM: 0.12, PERFECT_FUM_LOST: 0.65,
+    // Onside kick: recovery chance = BASE + ACC * accuracy² (a perfect kick about 40%, an average one about 25%).
+    ONSIDE_BASE: 0.08, ONSIDE_ACC: 0.32,
+    // High step: a runner within STRUT_RANGE yards of the goal showboats in when no defender ahead of him is
+    // within STRUT_CLEAR yards and no chaser behind him is within STRUT_TRAIL.
+    STRUT_RANGE: 12, STRUT_CLEAR: 7, STRUT_TRAIL: 3.5,
   },
 };

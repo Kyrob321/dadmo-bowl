@@ -137,3 +137,42 @@ window.EXPECT_PASS_D.goodCompDrop = [3, 12]; window.EXPECT_PASS_D.goodInt = [2.5
 window.EXPECT_PASS_D.pressCompDrop = [0, 8]; window.EXPECT_PASS_D.pressInt = [1.5, 5];
 // RESULT after the review fixes (30 games each): computer 66.1% / 1.7 INT; PERFECT drop 14.8, INT 5.7, contest 31%;
 // GOOD drop 8.2, INT 4.3, contest 22%; EARLY -3.6; PRESS (no steering) drop 2.6, INT 3.0, contest 10%. All 10 PASS.
+
+// T10 (written BEFORE running): onside kicks, high-step celebrations, 2:00 quarters, idle clock stop, and more
+// takeaways on a person's PERFECT press.
+window.EXPECT_T10 = {
+  // Onside: the ball always goes the legal 10 yards and stays short of the receivers' deep men.
+  onsideLand: [45, 56],            // kicking-team yard line where it's recovered, every try
+  onsidePerfect: [32, 48],         // recovery % with a perfect kick (formula says 40)
+  onsideCpu: [17, 32],             // recovery % with the computer's kicks (accuracy 0.45-0.97, formula says ~25)
+  cpuOnsidePerGame: [0.1, 0.8],    // computer vs computer: only late, only when behind
+  // High step: CPU vs CPU, share of touchdowns scored high-stepping, and struts that end in a tackle anyway.
+  strutTdShare: [15, 55], strutCaught: [0, 10],
+  // Quarters: 2:00 instead of 3:00, so about 2/3 of the plays (was ~130 per CPU game).
+  playsPerGame: [70, 100],
+  // Idle: offense sits 25 s before the snap: the clock loses 10 s (plus the dead-ball second), then stops.
+  idleClockLoss: [9.5, 11.5],
+  // PERFECT JUMP bot (was INT 5.7 per 100, comp drop 14.8): swats turn into picks, completions about the same.
+  perfectInt: [9, 16], perfectCompDrop: [11, 19],
+  goodInt: [4, 8],                 // GOOD bot (perfect only now and then; was 4.3)
+  cpuInt: [1.0, 2.8],              // computer defending: unchanged (was 1.7)
+  // PERFECT TACKLE bot: fumbles per perfect tackle (was ~1-2%), and the defense's share of the recoveries.
+  perfectFumPerTackle: [12, 22], perfectFumLost: [50, 80],
+};
+// RESULT (written after testing, T10):
+//  - Onside: perfect kick 40.3% recovered (300 tries), computer's late-game kicks 27%, about 0.25 per CPU game. PASS.
+//    First version decided the winner when the ball settled (~1 s), before the kicking team arrived, so its man
+//    teleported ~6 yd onto the ball. Now the winner is rolled at the kick, the other team's players bobble it on
+//    contact, and the ball is recovered only when the winner's man reaches it: 0 teleports, scramble 1.3 s avg.
+//    Recovery spot 44..51 (a bobble can knock it back a yard; legal once the receivers touch it): range now 44..56.
+//  - Quarters: 78 plays per CPU game. PASS.  Idle stop: 10.0 s lost, then stopped; clock restarts on the snap. PASS.
+//  - High step: MISS first (no defender within 7 yd: only 8-10% of TDs). Rule changed: a defender AHEAD of the runner
+//    counts inside 7 yd, a chaser behind him only inside 3.5 yd (he isn't catching up). Then 26% of TDs, 1.1 per
+//    game, 10% of struts don't score (they would have been caught anyway; the strut costs no speed). PASS (at edge).
+//  - PERFECT JUMP: first value 0.9 gave 18 INT per 100 (MISS, the T8 "far too strong" level). 0.45 gave 9.1, 0.6 gave
+//    13.2 INT / comp 48.6 (drop 16.2 vs the computer's 64.8). Kept 0.6. GOOD bot 5.9 INT, computer 1.4. All PASS.
+//  - PERFECT TACKLE: 0.15 gave 18.2% strips per perfect tackle; trimmed to 0.12: 15.6%, defense recovers 64%. PASS.
+//    A GOOD tackler (perfect on 40% of tackles) forces about 2 fumbles a game, about 1 of them lost.
+//  - League (150 games, clear): all 9 EXPECT_LEAGUE checks PASS. Difficulty: same as before (Dad on PRO 2% was
+//    already the known miss that added STARTER; STARTER 42%).
+window.EXPECT_T10.onsideLand = [44, 56];

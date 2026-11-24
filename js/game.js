@@ -140,6 +140,8 @@ const GAME = (() => {
     if (Math.abs(d) <= w) return ["GOOD", "#c8f0a0"];
     return [d < 0 ? "EARLY" : "LATE", "#ef5a45"];
   }
+  // The same test as the "PERFECT!" pop-up, so what the player sees is what the game counts.
+  const isPerfect = (pressT, idealT, w) => pressT != null && Math.abs(pressT - idealT) <= w * 0.35;
   // How well the computer times its presses, from a rating.
   const cpuQ = rating => clamp(K.CPU_Q_MEAN + 0.8 * (rating - 70) / 30 + gauss() * K.CPU_Q_SD, -1, 1);
 
@@ -199,7 +201,7 @@ const GAME = (() => {
   }
 
   function setupKickoff(kickTeam) {
-    G.celebrate = 0; G.rep = null; G.loose = null;
+    G.celebrate = 0; G.rep = null; G.loose = null; G.cel = null; G.onside = null;
     G.phase = "kick"; G.poss = kickTeam; G.los = 35; G.down = 1; G.togo = 10; G.clockRunning = false; G.mash = null;
     G.kick = { type: "kickoff", team: kickTeam, needle: 0, dir: 1, t: 0, cpuAt: rnd(0.8, 1.6) };
     G.players = [];
@@ -215,7 +217,7 @@ const GAME = (() => {
   }
 
   function setupScrimmage() {
-    G.celebrate = 0; G.rep = null; G.loose = null;
+    G.celebrate = 0; G.rep = null; G.loose = null; G.cel = null; G.onside = null; G.idleStop = false;
     G.phase = "presnap"; G.presnapT = 0; G.cpuSnapAt = rnd(1.1, 2.3); G.mash = null; G.play = null;
     const f = PLAYS.formation(G.los);
     const offT = G.poss, defT = other(offT);
@@ -294,18 +296,86 @@ const GAME = (() => {
     k.needle += k.dir * spd * dt;
     if (k.needle > 1) { k.needle = 1; k.dir = -1; }
     if (k.needle < 0) { k.needle = 0; k.dir = 1; }
-    let acc = null;
-    if (G.human[k.team]) { if (k.t > 0.35 && (INPUT.pressed(k.team, "z") || INPUT.pressed(k.team, "x"))) acc = 1 - Math.abs(k.needle - 0.5) * 2; }
-    else if (k.t > k.cpuAt) acc = rnd(0.45, 0.97);
+    let acc = null, onside = false;
+    if (G.human[k.team]) {
+      // Kickoff: Z kicks deep, X tries an onside kick. Punts and field goals: either button kicks.
+      if (k.t > 0.35 && INPUT.pressed(k.team, "z")) acc = 1 - Math.abs(k.needle - 0.5) * 2;
+      else if (k.t > 0.35 && INPUT.pressed(k.team, "x")) { acc = 1 - Math.abs(k.needle - 0.5) * 2; onside = k.type === "kickoff"; }
+    }
+    else if (k.t > k.cpuAt) { acc = rnd(0.45, 0.97); onside = k.type === "kickoff" && cpuOnside(k.team); }
     if (acc !== null) {
       const kicker = G.players.find(p => p.team === k.team && (p.id === "K" || p.role === "QB"));
       anim(kicker, "kick", 0.5); fx("dust", kicker.x + 0.5, kicker.y);
-      resolveKick(acc);
+      resolveKick(acc, onside);
     }
   }
+  // The computer goes onside late in the 4th quarter when it's down by two scores or less.
+  function cpuOnside(kt) {
+    const behind = G.score[other(kt)] - G.score[kt];
+    return !G.ot && G.quarter === 4 && behind > 0 && behind <= 16 && G.clock < Q * 0.6;
+  }
 
-  function resolveKick(acc) {
+  // ---------- onside kicks ----------
+  // A short, bouncing kick toward one sideline. Both teams run at it; the kick's accuracy sets the kicking
+  // team's chance to come up with it. The ball always goes the legal 10 yards.
+  function onsideKick(acc) {
+    const kt = G.kick.team, side = Math.random() < 0.5 ? -1 : 1;
+    bump("onsides", 1, kt);
+    G.phase = "onside"; G.clockRunning = !G.ot;
+    // Who comes up with it is rolled now; the scramble then plays out until one of them actually gets there.
+    const chance = K.ONSIDE_BASE + K.ONSIDE_ACC * acc * acc;
+    G.onside = { t: 0, kt, recv: other(kt), acc, chance, got: Math.random() < chance, bobble: 0 };
+    loose(35.6, C + side * rnd(0.5, 2), rnd(13, 14.5), side * rnd(3, 5.5), rnd(5.5, 6.5), 0.5);
+    G.ball = { state: "dead", x: 35.6, y: C, z: 0 };
+    banner("ONSIDE KICK!", "", 1.2, "#ffb627");
+    G.players.forEach(p => { p.vx = p.vy = 0; });
+  }
+  function updateOnside(dt) {
+    const o = G.onside, l = G.loose;
+    o.t += dt; o.bobble -= dt; G.ball.x = l.x; G.ball.y = l.y; // the camera follows the bouncing ball
+    const team = o.got ? o.kt : o.recv;
+    let near = 99, bob = null;
+    for (const p of G.players) {
+      if (p.lying) { p.vx = p.vy = 0; continue; }
+      // the kicking team knows it's coming; the receivers need a beat to react
+      if (o.t < (p.team === o.kt ? 0.12 : 0.4)) { p.vx = p.vy = 0; }
+      else seek(p, l.x + l.vx * 0.15, l.y + l.vy * 0.15, 1.05);
+      p.stride += Math.hypot(p.vx, p.vy) * dt;
+      if (Math.abs(p.vx) > 0.3) p.face = p.vx > 0 ? 1 : -1;
+      p.x += p.vx * dt; p.y = clamp(p.y + p.vy * dt, 0.5, W - 0.5);
+      const d = dist(p, l);
+      if (p.team === team) near = Math.min(near, d);
+      else if (d < 1 && l.z < 1.2 && o.bobble <= 0) bob = p;
+    }
+    // A player on the other team gets there first: it squirts off his hands.
+    if (bob && o.t < 3) {
+      o.bobble = 0.35; anim(bob, "catch", 0.3); fx("spark", l.x, l.y);
+      const a = Math.random() * Math.PI * 2; l.vx = Math.cos(a) * rnd(3, 5); l.vy = Math.sin(a) * rnd(3, 5); l.vz = rnd(3, 4.5);
+    }
+    if (!((near < 1.1 && l.z < 1.2 && o.t > 0.6) || o.t > 4)) return;
+    // Pile-up: the recovering team's closest man dives on it, and everyone close falls in.
+    const got = o.got;
+    const rec = nearestTo(team, l) || G.players[0];
+    rec.x = l.x; rec.y = l.y; rec.lying = true; anim(rec, "dive", 0.4); fx("dust", l.x, l.y); shake(0.2);
+    for (const p of G.players) if (p !== rec && dist(p, l) < 2.2) { p.lying = true; anim(p, "fall", 0.45); p.vx = p.vy = 0; }
+    G.loose = null; G.ball = { state: "held", holder: rec, x: rec.x, y: rec.y, z: 1 };
+    G.clockRunning = false;
+    const spot = Math.round(l.x);
+    event("onside", { team: o.kt, got });
+    if (got) {
+      bump("onsideRec", 1, o.kt); bigPlay(rec);
+      changePoss(o.kt, spot);
+      banner("ONSIDE RECOVERED!", CFG.TEAMS[o.kt].short + " KEEP IT!", 2, CFG.TEAMS[o.kt].trim);
+    } else {
+      changePoss(o.recv, 100 - spot);
+      banner("RECOVERED", CFG.TEAMS[o.recv].short + " BALL", 1.6, CFG.TEAMS[o.recv].trim);
+    }
+    dead(2, setupScrimmage);
+  }
+
+  function resolveKick(acc, onside) {
     const k = G.kick, kt = k.team, recv = other(kt);
+    if (k.type === "kickoff" && onside) return onsideKick(acc);
     if (k.type === "kickoff") {
       const land = 35 + 47 + acc * 18;
       return flight(35, land, 1.7, () => {
@@ -772,7 +842,11 @@ const GAME = (() => {
     if (has(defP, "BALL HAWK")) s -= 0.85;
     s = clamp(Math.round(s * 10) / 10, -2, 2);
     ST().ccScores.push(s);
-    if (s <= K.CC_INT) { // pick
+    // A person's PERFECT jump: the ball he gets a hand on is much more likely to be a pick than a swat.
+    const perfD = humanDef && b.defP === defP && isPerfect(b.defT, b.ideal, windowFor(defP.r.cov));
+    if (perfD) ST().perfJumps = (ST().perfJumps || 0) + 1;
+    if (s <= K.CC_INT + (perfD ? K.PERFECT_INT : 0)) { // pick
+      if (perfD) ST().perfInts = (ST().perfInts || 0) + 1;
       G.ball = { state: "held", holder: defP, x: defP.x, y: defP.y, z: 1 };
       G.control[defT] = defP; G.control[offT] = nearestTo(offT, defP);
       anim(defP, "catch", 0.4); shake(0.2); bump("ints"); pst(defP).ints++;
@@ -970,7 +1044,9 @@ const GAME = (() => {
     ST()["repsVs" + car.team] = (ST()["repsVs" + car.team] || 0) + 1;
     if (s >= 0.2) ST()["brokeBy" + car.team] = (ST()["brokeBy" + car.team] || 0) + 1;
     def.repCd = 0.6;
-    if (s <= -0.2) return tackle(car, def, "rep", s);
+    // A person's PERFECT tackle press (not a dive): a real chance to knock the ball loose.
+    const perfD = humanDef && rep.defQ == null && isPerfect(rep.defT, rep.ideal, rep.wDef);
+    if (s <= -0.2) return tackle(car, def, "rep", s, perfD);
     if (s >= 0.2) { if (power) powerPop(car, power); return breakFree(car, def, s, power === "FREIGHT TRAIN!" ? "truck" : move, rep.jdir); }
     // -0.1, 0 or 0.1: a dead heat → mash battle (shown when a human is involved, simulated otherwise)
     bump("mashes");
@@ -1017,7 +1093,7 @@ const GAME = (() => {
   }
 
   // ---------- tackles ----------
-  function tackle(car, by, kind, s) {
+  function tackle(car, by, kind, s, perfect) {
     // NFL rule: a quarterback brought down behind the line on a pass play is a sack, scramble or not.
     if (car.role === "QB" && G.play && G.play.type === "pass" && !G.play.thrown && car.x < G.los) kind = "sack";
     by.vx = by.vy = 0; car.vx = car.vy = 0;
@@ -1037,10 +1113,12 @@ const GAME = (() => {
       pf *= teamOf(by.team).flags.fumbleMul || 1;
       pf *= WEATHER.get("fum", G.quarter);
       if (has(by, "THE STRIP")) pf *= 4;
+      if (perfect) { pf = Math.min(0.5, pf + K.PERFECT_FUM); ST().perfTackles = (ST().perfTackles || 0) + 1; }
       if (teamOf(car.team).flags.noFumble) pf = 0;
       if (Math.random() < pf) {
         bump("fumbles");
-        const lost = Math.random() < CFG.NFL.fumbleLostShare / 100;
+        const lost = Math.random() < (perfect ? K.PERFECT_FUM_LOST : CFG.NFL.fumbleLostShare / 100);
+        if (perfect) { ST().perfFums = (ST().perfFums || 0) + 1; if (lost) ST().perfFumsLost = (ST().perfFumsLost || 0) + 1; pop("STRIPPED!", car.x, car.y - 1, "#ffe14a"); }
         if (lost) bump("fumblesLost");
         banner("FUMBLE!", lost ? "RECOVERED BY " + CFG.TEAMS[by.team].short : "OFFENSE RECOVERS", 1.8);
         // The ball pops out and bounces; whoever recovers dives on top of where it ends up.
@@ -1131,6 +1209,13 @@ const GAME = (() => {
     if (G.phase !== "live") return;
     G.mash = null; G.rep = null; G.score[team] += 7; G.clockRunning = false;
     bump("points", 7, team); bump("tds", 1, team);
+    // High-stepped in untouched: he coasts a step or two, then does a celebration (they take turns).
+    const strutter = G.play && G.play.strut, cel = strutter && strutter === carrier();
+    if (G.play && G.play.strutOff) bump("strutOffTd", 1, team);
+    if (cel) {
+      G.celN = (G.celN || 0) + 1; bump("celebrations", 1, team);
+      G.cel = { p: strutter, kind: CELEBRATIONS[(G.celN - 1) % CELEBRATIONS.length], t: 0, vx: strutter.vx, vy: strutter.vy, done: false };
+    }
     if (team === G.poss) recordYards(100);
     { const scorer = team === G.poss ? G.play && G.play.lastCar : carrier(), sc = pst(scorer); if (sc) sc.tds++;
       if (team === G.poss && G.play && G.play.type === "pass" && G.play.caughtAt != null && G.play.passer) pst(G.play.passer).passTds++; }
@@ -1139,7 +1224,60 @@ const GAME = (() => {
     event("td", { team, pickSix: team !== G.poss });
     G.celebrate = team; G.hype = 3; shake(0.3);
     banner("TOUCHDOWN!", CFG.TEAMS[team].name, 2.6, CFG.TEAMS[team].trim);
-    scored(team, 2.6);
+    scored(team, cel ? 3.3 : 2.6); // a little longer to enjoy the show
+  }
+
+  // ---------- celebrations ----------
+  const CELEBRATIONS = ["spike", "dance", "spin", "bow"];
+  const CEL_NAME = { spike: "THE SPIKE!", dance: "TD DANCE!", spin: "SPIN JUMP!", bow: "TAKES A BOW!" };
+  const CEL_START = 0.45, CEL_LEN = 2.3;
+  // Is the ball carrier all alone near the goal line? Then he high-steps the rest of the way.
+  function checkStrut() {
+    const car = carrier(), pl = G.play;
+    if (!car || G.mash || pl.strutOff) return;
+    if (pl.strut && pl.strut !== car) pl.strut = null; // the ball changed hands
+    if (car.role === "QB" && pl.type === "pass" && !pl.thrown && !pl.crossed) return;
+    const dir = dirOf(car), toGo = dir > 0 ? 100 - car.x : car.x;
+    // A defender ahead of him (or level) is a threat inside STRUT_CLEAR yards; one chasing from behind
+    // only inside STRUT_TRAIL, since he isn't catching up.
+    let near = 99, threat = false;
+    for (const o of G.players) {
+      if (o.team === car.team || o.down > 0) continue;
+      const d = dist(o, car), behind = (car.x - o.x) * dir > 1;
+      near = Math.min(near, d);
+      if (d < (behind ? K.STRUT_TRAIL : K.STRUT_CLEAR)) threat = true;
+    }
+    if (pl.strut === car) {
+      // someone closed in after all: drop the act and run
+      if (near < 2.5) { pl.strut = null; pl.strutOff = true; bump("strutOff", 1, car.team); pop("UH OH!", car.x, car.y, "#ef5a45"); }
+      return;
+    }
+    if (toGo > 0 && toGo <= K.STRUT_RANGE && !threat && car.vx * dir > 0.5) {
+      pl.strut = car; bump("struts", 1, car.team); pop("HIGH STEP!", car.x, car.y, "#ffe14a");
+    }
+  }
+  // Runs during the touchdown's dead time: coast, then the celebration (drawn from the "cel_" animation).
+  function updateCelebration(dt) {
+    const c = G.cel; if (!c) return;
+    const p = c.p; c.t += dt;
+    if (c.t < CEL_START) {
+      const k = 1 - c.t / CEL_START;
+      p.vx = c.vx * k; p.vy = c.vy * k; p.x += p.vx * dt; p.y = clamp(p.y + p.vy * dt, 1, W - 1);
+      p.stride += Math.hypot(p.vx, p.vy) * dt;
+      if (G.ball.state === "held" && G.ball.holder === p) { G.ball.x = p.x; G.ball.y = p.y; }
+      return;
+    }
+    if (!c.done) {
+      c.done = true; p.vx = p.vy = 0;
+      anim(p, "cel_" + c.kind, CEL_LEN);
+      pop(CEL_NAME[c.kind], p.x, p.y - 2, "#ffe14a");
+      // Everything but the spike starts by flipping the ball away.
+      if (c.kind !== "spike") { G.ball.state = "dead"; loose(p.x, p.y, -(p.face || 1) * rnd(2, 3), rnd(-1, 1), rnd(4, 5), 1.2); }
+    }
+    if (c.kind === "spike" && !c.spiked && c.t >= CEL_START + 0.3 * CEL_LEN) {
+      c.spiked = true; G.ball.state = "dead";
+      loose(p.x + 0.4 * (p.face || 1), p.y, rnd(-1, 1), rnd(-1, 1), 11, 0.2); fx("spark", p.x, p.y); shake(0.15);
+    }
   }
 
   function safety(offT) {
@@ -1186,16 +1324,20 @@ const GAME = (() => {
     if (G.hype > 0) G.hype -= dt;
     if (G.banner) { G.banner.t -= dt; if (G.banner.t <= 0) G.banner = null; }
     if (G.fireMsg) { G.fireMsg.t -= dt; if (G.fireMsg.t <= 0) G.fireMsg = null; }
-    const tick = G.clockRunning && !G.ot && (G.phase === "live" || G.phase === "presnap" || G.phase === "dead");
+    const tick = G.clockRunning && !G.ot && (G.phase === "live" || G.phase === "presnap" || G.phase === "dead" || G.phase === "onside");
     if (tick && G.clock > 0) G.clock = Math.max(0, G.clock - dt);
     if (G.phase === "live" || G.phase === "flight") dt *= CFG.ACTION_SPEED;
     switch (G.phase) {
       case "kick": return updateKick(dt);
       case "flight": return updateFlight(dt);
+      case "onside": return updateOnside(dt);
       case "presnap":
         if (G.clock <= 0 && !G.ot) { G.next = setupScrimmage; return endQuarter(); }
+        // Sitting on the ball: after IDLE_CLOCK_STOP seconds the clock stops until the snap.
+        if (G.clockRunning && G.presnapT >= CFG.IDLE_CLOCK_STOP) { G.clockRunning = false; G.idleStop = true; banner("CLOCK STOPPED", "SNAP WHEN READY", 2, "#9fb1c5"); }
         return updatePresnap(dt);
       case "dead":
+        updateCelebration(dt);
         G.deadT -= dt;
         if (G.deadT > 0) return;
         if (G.clock <= 0 && !G.ot) return endQuarter();
@@ -1235,6 +1377,7 @@ const GAME = (() => {
     checkReps();
     if (G.phase === "live") resolveRep();
     if (G.phase === "live" && !G.mash) checkBounds();
+    if (G.phase === "live") checkStrut();
   }
 
   // Run the game fast without drawing (for tests and tuning).
