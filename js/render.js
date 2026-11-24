@@ -548,7 +548,8 @@ const RENDER = (() => {
         ctx.fillRect(Math.round(x), Math.round(y), w, hgt);
       }
     };
-    if (typeof HOLIDAY !== "undefined" && HOLIDAY.on && k !== "snow" && k !== "rain" && k !== "neon" && k !== "dome") {
+    // WEATHER: OFF in the pause menu turns these off too, so the field is truly clear.
+    if (typeof HOLIDAY !== "undefined" && HOLIDAY.on && WEATHER.enabled() && k !== "snow" && k !== "rain" && k !== "neon" && k !== "dome") {
       fall(34, -10, 26, 2, 2, "rgba(255,255,255,.75)"); fall(26, -6, 16, 1, 1, "rgba(255,255,255,.6)"); // light holiday flurries
     }
     switch (k) {

@@ -160,7 +160,7 @@
         const pick = PAUSE_ITEMS[pause.sel];
         // menu items that keep the pause screen open
         if (pick.startsWith("MUSIC")) { const m = MUSIC.toggle(); PAUSE_ITEMS = pauseItems(); musicLabel(); pause.msg = m ? "MUSIC ON" : "MUSIC OFF (PRESS M ON THE LAPTOP ANYTIME)"; return; }
-        if (pick.startsWith("WEATHER")) { WEATHER.toggle(); PAUSE_ITEMS = pauseItems(); pause.msg = WEATHER.enabled() ? "WEATHER ON: " + WEATHER.label() : "WEATHER OFF FOR NOW"; return; }
+        if (pick.startsWith("WEATHER")) { WEATHER.toggle(); PAUSE_ITEMS = pauseItems(); pause.msg = WEATHER.enabled() ? "WEATHER ON: " + WEATHER.label() : "WEATHER OFF: CLEAR FIELD, NORMAL FOOTING"; return; }
         // Backup and restore happen on the phone that picked them (copy into Notes / paste back in).
         // From the laptop keyboard (no phone), they fall back to a laptop dialog.
         const phone = window.PADS && window.PADS.connected(s) && !INPUT.kbHeld(s, "z") && !INPUT.kbHeld(s, "x");
