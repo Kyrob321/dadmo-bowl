@@ -42,7 +42,7 @@ const TUTORIAL = (() => {
     const g = makeGame(), o = other(s), boost = { 1: 0, 2: 0 };
     boost[o] = -15; // a soft computer team, so the drills work the first time
     g.newGame({ [s]: true, [o]: false }, { 1: "bolts", 2: "krush", home: 1, weather: "clear", boost, powers: false });
-    const H = { s, o, g, G: g.state, d: 0, msg: "", hint: "", await: null, later: null, hold: false, bonus: false, done: false, verdict: null, tries: 0 };
+    const H = { s, o, g, G: g.state, d: 0, msg: "", hint: "", await: null, later: null, hold: false, bonus: false, done: false, verdict: null, tries: 0, afterI: 0, card: null };
     setup(H, true);
     const name = s === 1 ? "DAD" : "P2";
     ask(H, "HEY " + name + "! IT'S KYLE. 2 MINUTES OF PRACTICE, THEN YOU'RE PLAYING FOR REAL. YOU'RE THE " + CFG.TEAMS[s].short + ".",
@@ -217,18 +217,27 @@ const TUTORIAL = (() => {
     if (H.tries >= 3) return talk(H, first + " WE'LL GET IT IN THE GAME. MOVING ON!", () => next(H));
     talk(H, msg, () => setup(H));
   }
-  // A tip after some drills, each with its own line to read.
-  const TIPS = {
-    jump: "TIP: ON DEFENSE, X SWITCHES TO ANOTHER PLAYER, AND BOOST IS A BURST OF SPEED.",
-    kickoff: "TIP: BEHIND LATE? PRESS UP INSTEAD FOR A SURPRISE ONSIDE KICK.",
+  // After some drills: a chalkboard card or a tip, each waiting for "GOT IT".
+  // The run drill is followed by how the timing bars work (with a practice bar) and every offensive skill move.
+  const AFTER = {
+    run: [
+      { card: "timing", msg: "EVERY BIG MOMENT HAS A TIMING BAR. PRESS Z A FEW TIMES TO PRACTICE ON THIS ONE!", hint: "Z: TRY IT  X: GOT IT", keys: ["x"], labels: { z: "TRY IT", x: "GOT IT" } },
+      { card: "moves", msg: "WHEN A TACKLER CLOSES IN, A RUN BAR POPS UP. HIT ONE OF THESE MOVES IN THE GREEN!",
+        labels: { z: "GOT IT", x: "GOT IT", up: "JUKE", down: "JUKE", right: "TRUCK", left: "STIFF" } },
+    ],
+    jump: [{ msg: "TIP: ON DEFENSE, X SWITCHES TO ANOTHER PLAYER, AND BOOST IS A BURST OF SPEED." }],
+    kickoff: [{ msg: "TIP: BEHIND LATE? PRESS UP INSTEAD FOR A SURPRISE ONSIDE KICK." }],
   };
   function next(H, skipped) {
-    const tip = TIPS[DRILLS[H.d]];
-    if (tip && !skipped && !H.tipped) {
-      H.tipped = true; H.hold = true;
-      return ask(H, tip, "Z: GOT IT", ["z", "x"], () => next(H), { labels: { z: "GOT IT", x: "GOT IT" } });
+    const list = AFTER[DRILLS[H.d]];
+    if (list && skipped) while (H.afterI < list.length && !list[H.afterI].card) H.afterI++;
+    if (list && H.afterI < list.length) {
+      const a = list[H.afterI++];
+      H.hold = true; H.card = a.card || null; H.demo = { t: 0, fb: null, fbT: 0, at: 0 };
+      return ask(H, a.msg, a.hint || "Z: GOT IT", a.keys || ["z", "x"], () => next(H), { labels: a.labels || { z: "GOT IT", x: "GOT IT" } });
     }
-    H.bonus = false; H.tries = 0; H.tipped = false; H.d++;
+    H.card = null; H.afterI = 0;
+    H.bonus = false; H.tries = 0; H.d++;
     if (H.d < DRILLS.length) return setup(H);
     H.d = DRILLS.length - 1; H.hold = true;
     const xmas = typeof HOLIDAY !== "undefined" && HOLIDAY.on;
@@ -260,6 +269,7 @@ const TUTORIAL = (() => {
       }
       let go = !H.await && !H.hold;
       const A = H.await;
+      if (H.card === "timing") demoStep(H, dt, A && A.t > 0.25 && INPUT.pressed(H.s, "z"));
       if (A) {
         A.t += dt;
         const hit = A.t > 0.25 && A.keys.find(k => k === "stick" ? INPUT.dir(H.s).any : INPUT.pressed(H.s, k));
@@ -269,6 +279,21 @@ const TUTORIAL = (() => {
       if (go) { H.g.update(dt); watch(H); }
     }
     return halves.length > 0 && (go1 || halves.every(h => h.done));
+  }
+
+  // The practice bar on the timing card: the needle sweeps; X stops it and grades the press like the game does.
+  const DEMO = { sweep: 1.0, ideal: 0.62, w: 0.13 }; // real bars: 0.4-0.9 s; the green here matches a good player's
+  function demoStep(H, dt, press) {
+    const D = H.demo;
+    if (D.fbT > 0) { D.fbT -= dt; if (D.fbT <= 0) { D.t = 0; D.fb = null; } return; }
+    D.t += dt; if (D.t > DEMO.sweep + 0.3) D.t = 0; // a short rest past the end, then again
+    if (press) {
+      D.at = Math.min(1, D.t / DEMO.sweep);
+      const d = D.at - DEMO.ideal;
+      D.fb = Math.abs(d) <= DEMO.w * 0.35 ? ["PERFECT!", "#7fd68f"] : Math.abs(d) <= DEMO.w ? ["GOOD", "#c8f0a0"] : [d < 0 ? "EARLY" : "LATE", "#ef5a45"];
+      D.fbT = 1.1;
+      if (D.fb[0] === "PERFECT!" && SFX.chime) SFX.chime();
+    }
   }
 
   // What a phone shows: the coach's buttons while he's waiting, otherwise the game's own labels (null).
@@ -326,7 +351,7 @@ const TUTORIAL = (() => {
     const fy = Math.round(44 + ((G.ball && G.ball.state === "air" && me) ? Math.max(me.y, G.ball.ty || 0) : (G.ball ? G.ball.y : 26)) * 4.3);
     const lowLine = VH - h - 4 - 14;
     if (fy > lowLine + 8) H.boxTop = true; else if (fy < lowLine - 16) H.boxTop = false;
-    if (G.phase === "kick" || G.phase === "presnap") H.boxTop = false;
+    if (G.phase === "kick" || G.phase === "presnap" || H.card) H.boxTop = false;
     const show = !!(msg || hint);
     return { lines, hint, h, y0: H.boxTop ? 24 : VH - h - 4, top: !!H.boxTop, show };
   }
@@ -341,6 +366,75 @@ const TUTORIAL = (() => {
     B.lines.forEach((l, i) => RENDER.text(l, tx, y0 + 18 + i * 10, "#f3efe4", 8));
     if (B.hint) RENDER.text(B.hint, tx, y0 + 18 + B.lines.length * 10 + 2, Math.floor(time * 3) % 2 ? "#ffe14a" : "#ffb627", 8);
   }
+  // ----- chalkboard cards -----
+  const MOVES = [
+    { key: "UP/DOWN", name: "JUKE", pose: "run", why: "BEST WHEN HE'S HEAD-ON" },
+    { key: "RIGHT", name: "TRUCK", pose: "truck", why: "BEST DOWNFIELD (NOT LINEMEN)" },
+    { key: "LEFT", name: "STIFF ARM", pose: "stiff", why: "BEST WHEN HE'S AT YOUR SIDE" },
+    { key: "Z", name: "BURST", pose: "run", why: "QUICK SPEED, 3 SEC RECHARGE" },
+    { key: "X / Z", name: "MASH", pose: "grapple", why: "A TIE? TAP X AND Z FAST" },
+  ];
+  function board(c, x0, w, y0, y1, title) {
+    c.fillStyle = "rgba(0,0,0,.45)"; c.fillRect(x0, 20, w, VH - 20);
+    c.fillStyle = "#6b4a2b"; c.fillRect(x0 + 6, y0, w - 12, y1 - y0);
+    c.fillStyle = "#123323"; c.fillRect(x0 + 10, y0 + 4, w - 20, y1 - y0 - 8);
+    RENDER.text(title, x0 + w / 2, y0 + 12, "#ffe14a", 8, "center");
+  }
+  function timingCard(c, H, x0, w, y0, y1, time) {
+    board(c, x0, w, y0, y1, "HOW TIMING WORKS");
+    const wide = w > 300, cx = x0 + w / 2, L = [wide ? "A BAR POPS UP AT BIG MOMENTS:" : "BARS POP UP AT BIG PLAYS:", "RUN \u00b7 HIT \u00b7 CATCH \u00b7 JUMP"];
+    RENDER.text(L[0], cx, y0 + 28, "#f3efe4", 8, "center");
+    RENDER.text("RUN BAR: DO A MOVE", cx, y0 + 40, "#9fd0ff", 8, "center");
+    RENDER.text("HIT \u00b7 CATCH \u00b7 JUMP BARS: Z", cx, y0 + 51, "#9fd0ff", 8, "center");
+    // the practice bar, drawn like the real one (bigger)
+    const bw = Math.min(220, w - 48), bx = Math.round(cx - bw / 2), by = y0 + 84, D = H.demo || { t: 0 };
+    const px = v => bx + Math.round(bw * Math.max(0, Math.min(1, v)));
+    RENDER.text("PERFECT", px(DEMO.ideal), by - 20, "#7fd68f", 8, "center");
+    c.fillStyle = "#7fd68f"; c.fillRect(px(DEMO.ideal) - 1, by - 9, 2, 6);
+    c.fillStyle = "rgba(0,0,0,.75)"; c.fillRect(bx - 3, by - 3, bw + 6, 16);
+    c.fillStyle = "#5a1d1d"; c.fillRect(bx, by, bw, 10);
+    c.fillStyle = "#7fd68f"; c.fillRect(px(DEMO.ideal - DEMO.w), by, px(DEMO.ideal + DEMO.w) - px(DEMO.ideal - DEMO.w), 10);
+    const needle = D.fb ? D.at : Math.min(1, D.t / DEMO.sweep);
+    c.fillStyle = "#fff"; c.fillRect(px(needle) - 1, by - 4, 3, 18);
+    RENDER.text("EARLY", px((DEMO.ideal - DEMO.w) / 2), by + 18, "#ef5a45", 8, "center");
+    RENDER.text("GOOD", px(DEMO.ideal), by + 18, "#c8f0a0", 8, "center");
+    RENDER.text("LATE", px((1 + DEMO.ideal + DEMO.w) / 2), by + 18, "#ef5a45", 8, "center");
+    if (D.fb) RENDER.text(D.fb[0], cx, by + 34, D.fb[1], 8, "center");
+    const tips = [wide ? "PRESS WHILE IT'S IN THE GREEN." : "PRESS IN THE GREEN.", "DEAD CENTER = PERFECT.", "CLOSER TO CENTER = BETTER.", "BETTER PLAYERS: WIDER GREEN."];
+    const ty = by + 46;
+    tips.forEach((t, i) => { if (ty + i * 11 < y1 - 12) RENDER.text(t, cx, ty + i * 11, i === 1 ? "#7fd68f" : "#f3efe4", 8, "center"); });
+  }
+  function movesCard(c, H, x0, w, y0, y1, time) {
+    const wide = w > 300;
+    board(c, x0, w, y0, y1, wide ? "SKILL MOVES (AFTER A HANDOFF OR CATCH)" : "SKILL MOVES WITH THE BALL");
+    if (wide) {
+      const rowH = Math.min(28, Math.floor((y1 - y0 - 46) / MOVES.length)), top = y0 + 28;
+      MOVES.forEach((m, i) => {
+        const y = top + i * rowH, frame = m.pose === "run" ? Math.floor(time * 10) % 6 : 0;
+        const img = SPRITES.get(H.s, 0, m.pose, frame, 1);
+        c.drawImage(img, x0 + 34 - SPRITES.OX, y + rowH - 2 - SPRITES.OY);
+        RENDER.text(m.key, x0 + 56, y + rowH / 2 - 4, "#ffe14a", 8);
+        RENDER.text(m.name, x0 + 132, y + rowH / 2 - 4, "#f3efe4", 8);
+        RENDER.text(m.why, x0 + 222, y + rowH / 2 - 4, "#9fb1c5", 8);
+      });
+    } else {
+      const top = y0 + 26, rowH = Math.min(24, Math.floor((y1 - y0 - 44) / MOVES.length));
+      MOVES.forEach((m, i) => {
+        const y = top + i * rowH;
+        RENDER.text(m.key, x0 + 16, y, "#ffe14a", 8);
+        RENDER.text(m.name, x0 + w - 16, y, "#f3efe4", 8, "right");
+        RENDER.text(m.why, x0 + 16, y + 10, "#9fb1c5", 8);
+      });
+    }
+    RENDER.text(wide ? "TIME THE MOVE WITH THE RUN BAR!" : "TIME IT WITH THE RUN BAR!", x0 + w / 2, y1 - 16, "#7fd68f", 8, "center");
+  }
+  function card(c, H, x0, w, B, time) {
+    if (!H.card) return;
+    const y0 = 26, y1 = B.show && !B.top ? B.y0 - 4 : VH - 6;
+    if (H.card === "timing") timingCard(c, H, x0, w, y0, y1, time);
+    else if (H.card === "moves") movesCard(c, H, x0, w, y0, y1, time);
+  }
+
   // The kick meter sits just above the coach box.
   const meterAt = (B, x) => ({ x, y: B.show && !B.top ? B.y0 - 20 : VH - 30 });
   function topBar(c, H, x0, w, split) {
@@ -372,7 +466,7 @@ const TUTORIAL = (() => {
     if (halves.length === 1) {
       const H = halves[0], B = boxGeom(H, VW);
       RENDER.draw(H.G, time, { tutorial: true, meter: meterAt(B, VW / 2) });
-      topBar(c, H, 0, VW, false); coachBox(c, H, 0, VW, time, B);
+      card(c, H, 0, VW, B, time); topBar(c, H, 0, VW, false); coachBox(c, H, 0, VW, time, B);
       return;
     }
     // Split screen: draw each game off screen, then show a half-width slice of it on its side.
@@ -381,7 +475,7 @@ const TUTORIAL = (() => {
       const B = boxGeom(H, VW / 2), cx = cropFor(H), x0 = i * (VW / 2);
       RENDER.drawTo(off, H.G, time, { tutorial: true, meter: meterAt(B, cx + VW / 4) });
       c.drawImage(off, cx, 0, VW / 2, VH, x0, 0, VW / 2, VH);
-      topBar(c, H, x0, VW / 2, true); coachBox(c, H, x0, VW / 2, time, B);
+      card(c, H, x0, VW / 2, B, time); topBar(c, H, x0, VW / 2, true); coachBox(c, H, x0, VW / 2, time, B);
     });
     c.fillStyle = "#000"; c.fillRect(VW / 2 - 1, 0, 2, VH);
   }

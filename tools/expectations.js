@@ -198,3 +198,9 @@ window.EXPECT_T10.onsideLand = [44, 56];
 // the play is low; kicks graded from the game's own accuracy (k.acc); onside in the kickoff drill is a retry with
 // its own line; ladder line keeps the next goal. Re-checked: full run 41 s by bot, retry cap, bonus fail, Z skip,
 // split screen screenshots, no console errors.
+// T12: timing + skill-move chalkboard cards after the run drill. Practice bar (Z to try, X: GOT IT) grades with the
+// same rule as verdict(); sweep 1.0 s, green +/-0.13 (a good player's window). Moves card lists juke/truck/stiff/
+// burst/mash with when each is best (game.js moveBonus, mash). Skipping a drill still shows its cards (tips skipped).
+// Review fixes: practice on Z not X, which button goes with which bar, RIGHT/LEFT keys plus phone labels on the
+// moves card, when the RUN bar appears, truck "downfield (not linemen)", mash "tie? tap X and Z fast".
+// Checked: single + split screenshots, skip path, labels, full bot run 48.5 s, no console errors.
