@@ -1,6 +1,7 @@
 // The football: rules, clock, players, AI, controls and the hidden "rep" scores. No drawing in here.
 // Positions are yards in the offense's frame (offense always attacks toward x = 100).
-const GAME = (() => {
+// makeGame() builds one independent game (the tutorial runs two side by side); GAME is the main one.
+function makeGame() {
   const W = CFG.FIELD_W, C = W / 2, K = CFG.CAL;
   const rnd = (a, b) => a + Math.random() * (b - a);
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -305,6 +306,7 @@ const GAME = (() => {
     }
     else if (k.t > k.cpuAt) { acc = rnd(0.45, 0.97); onside = k.type === "kickoff" && cpuOnside(k.team); }
     if (acc !== null) {
+      k.acc = acc; k.onside = onside; // (the tutorial grades the kick from these)
       const kicker = G.players.find(p => p.team === k.team && (p.id === "K" || p.role === "QB"));
       anim(kicker, "kick", 0.5); fx("dust", kicker.x + 0.5, kicker.y);
       resolveKick(acc, onside);
@@ -1400,6 +1402,27 @@ const GAME = (() => {
       G.clockRunning = false; G.mash = null; G.rep = null; G.loose = null;
       setupScrimmage();
     },
+    // Tutorial helpers: snap on cue, a kickoff for a given team, trim the field down to a few players,
+    // and a one-on-one in the open field (a runner coming at one defender).
+    snap(call) { if (G.phase === "presnap") snap(call); },
+    kickoff(team) { G.clockRunning = false; G.mash = null; G.rep = null; setupKickoff(team); },
+    keep(fn) { G.players = G.players.filter(fn); if (G.receivers) G.receivers = G.receivers.filter(fn); G.target = 0; },
+    oneOnOne(o) {
+      const off = o.poss, def = other(off);
+      G.poss = off; G.los = o.cx; G.down = 1; G.togo = 10; G.clockRunning = false;
+      G.celebrate = 0; G.rep = null; G.loose = null; G.cel = null; G.onside = null; G.mash = null;
+      const car = makePlayer(off, "off", { role: "RB", x: o.cx, y: o.cy != null ? o.cy : C });
+      const d = makePlayer(def, "def", { role: "LB", x: o.dx, y: o.dy != null ? o.dy : C });
+      G.players = [car, d]; tag(G.players);
+      car.face = 1; d.face = -1;
+      G.phase = "live";
+      G.play = { type: "return", t: 0, thrown: true, handed: true, crossed: true, startLos: o.cx, lastCar: car };
+      G.ball = { state: "held", holder: car, x: car.x, y: car.y, z: 1 };
+      G.control = { [off]: car, [def]: d }; G.receivers = [];
+    },
   };
-  return { pst, state: G, newGame, update, sim, fgNeed, windowFor, setTeams, dev, fireOn };
-})();
+  const api = { pst, state: G, newGame, update, sim, fgNeed, windowFor, setTeams, dev, fireOn };
+  G.api = api; // the drawing code asks the game it's drawing (not always the main one) who's on fire
+  return api;
+}
+const GAME = makeGame();

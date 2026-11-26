@@ -181,3 +181,20 @@ window.EXPECT_T10.onsideLand = [44, 56];
 // DRILL starts at 1:00; onside scramble runs at play speed (ACTION_SPEED; ball too): perfect kicks 39.3%, 1.7 s avg,
 // 0 fallbacks, 0 teleports; no on-fire credit for onside recoveries. Unlock "3 TDs in a game" measured 52% of team-
 // games on main vs 20% with 2:00 quarters; 2 TDs now measures 53%, so the Rattlers goal is 2 TDs (same odds as before).
+
+// ---------- T11: Coach Kyle's tutorial ----------
+// Expected (written before testing): each drill passes when its move is done; timing drills offer one bonus try
+// unless the first try was PERFECT; a bot that does every move with no reading time finishes in under a minute
+// (so a person reading each line lands near 2-3 minutes); league stats unchanged by the makeGame() refactor.
+// RESULT: all six drills pass by bot (tools/tutorial-test.js), with the PERFECT, GOOD/LATE + bonus, and
+// "he got by / no jump" retry paths checked. Bot run-through 47.5 s. Offer -> tutorial -> NEW CHALLENGER (Bolts)
+// -> select with the Bolts highlighted, pause-menu TUTORIAL (pick twice), tutorial pause (skip / quit), and the
+// 2-player split-screen finish (waits for both) all checked. League (60 games, clear): all 9 EXPECT_LEAGUE PASS.
+// Review fixes (virtual Kyle): phone extra button now shows TUTORIAL on the title (pad.js said BOOST); team select
+// starts on an open team when the Bolts are locked; split-screen kick meter drawn inside each half above the coach
+// box; split framing keeps your defender and the landing spot in view; retries capped at 3 and a missed bonus moves
+// on; lines stay up 1.5 s + 1 s per 18 characters (Z skips after 1 s); X-switch/BOOST and onside get their own
+// "GOT IT" tips; the first player done can start without the other after 3 s; the coach box moves to the top when
+// the play is low; kicks graded from the game's own accuracy (k.acc); onside in the kickoff drill is a retry with
+// its own line; ladder line keeps the next goal. Re-checked: full run 41 s by bot, retry cap, bonus fail, Z skip,
+// split screen screenshots, no console errors.

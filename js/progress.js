@@ -3,7 +3,7 @@
 // or a restart loses nothing. Developer mode keeps its own separate copy and never touches the real one.
 const PROGRESS = (() => {
   const KEY = "dadmo-progress-v1", DEV_KEY = "dadmo-dev-progress-v1";
-  const START = ["krush", "anvils", "gators", "comets", "bolts"]; // the Bolts move to "finish the tutorial" once it exists
+  const START = ["krush", "anvils", "gators", "comets"]; // the Bolts unlock by finishing Coach Kyle's tutorial
   const CHEAT = ["left", "right", "right", "up", "up", "down", "down", "down", "down", "down"]; // 1-2-2-5: Christmas
   // One door at a time, in this order. Only the next locked team can unlock, at most one per game.
   // Totals (wins, takeaways) count in the background the whole time.
@@ -39,6 +39,7 @@ const PROGRESS = (() => {
     const t = TEAMS.byId[id], d = door(), rung = LADDER.find(l => l.id === id);
     if (isUnlocked(id)) return { id, open: true };
     if (HINT[id]) return { id, open: false, goal: HINT[id], next: false };
+    if (id === "bolts") return { id, open: false, goal: "FINISH COACH KYLE'S TUTORIAL (TITLE SCREEN)", next: true };
     const next = d && d.id === id;
     return { id, open: false, next, goal: next ? rung.goal : "EARN THE EARLIER TEAMS FIRST",
       prog: next ? rung.prog(data, data.unlocked) : null };
@@ -92,6 +93,16 @@ const PROGRESS = (() => {
     return got;
   }
 
+  // ----- Coach Kyle's tutorial: finishing it unlocks the Bolts. Returns "bolts" if that's new. -----
+  function finishTutorial() {
+    data.tutorialDone = true;
+    let got = null;
+    if (!data.unlocked.includes("bolts")) { data.unlocked.push("bolts"); got = "bolts"; }
+    save(); return got;
+  }
+  // The first game ever offers the tutorial (until it's been done once or the Bolts are already open).
+  const offerTutorial = () => !dev && !data.tutorialDone && data.games === 0 && !data.unlocked.includes("bolts");
+
   // ----- cheat code (title screen, phone D-pad or keyboard arrows) -----
   let buf = [];
   function cheatKey(k) {
@@ -112,7 +123,7 @@ const PROGRESS = (() => {
   // UTF-8 safe base64 (team or player names with any character can't break the backup).
   const enc = s => btoa(unescape(encodeURIComponent(s)));
   const dec = s => { const raw = atob(s); try { return decodeURIComponent(escape(raw)); } catch (e) { return raw; } }; // older codes were plain
-  function code() { return "DADMO-" + enc(JSON.stringify({ u: data.unlocked, g: data.games, w: data.wins, t: data.takeaways, b: data.bestTds, l: data.bestLongWin, v: data.vs || {} })); }
+  function code() { return "DADMO-" + enc(JSON.stringify({ u: data.unlocked, g: data.games, w: data.wins, t: data.takeaways, b: data.bestTds, l: data.bestLongWin, v: data.vs || {}, k: !!data.tutorialDone })); }
   // Only well-formed matchup records come back (a damaged one is dropped, not crashed on).
   function cleanVs(v) {
     const out = {}; if (!v || typeof v !== "object") return null;
@@ -128,11 +139,11 @@ const PROGRESS = (() => {
       if (!Array.isArray(o.u)) return false;
       const vs = cleanVs(o.v) || data.vs || {}; // matchup history comes back too (older codes keep what's here)
       keepUndo();
-      data = Object.assign(fresh(), { unlocked: o.u.filter(id => TEAMS.byId[id]), games: +o.g || 0, wins: +o.w || 0, takeaways: +o.t || 0, bestTds: +o.b || 0, bestLongWin: !!o.l, vs });
+      data = Object.assign(fresh(), { unlocked: o.u.filter(id => TEAMS.byId[id]), games: +o.g || 0, wins: +o.w || 0, takeaways: +o.t || 0, bestTds: +o.b || 0, bestLongWin: !!o.l, vs, tutorialDone: !!o.k });
       save(); return true;
     } catch (e) { return false; }
   }
 
-  return { isUnlocked, card, door, openTeams, onPlay, onQuit, onGameOver, cheatKey, reset, code, restore, setDev, save,
+  return { isUnlocked, card, door, openTeams, onPlay, onQuit, onGameOver, cheatKey, reset, code, restore, setDev, save, finishTutorial, offerTutorial,
     get data() { return data; }, LADDER, START, CHEAT };
 })();

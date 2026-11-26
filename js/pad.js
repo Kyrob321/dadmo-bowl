@@ -65,7 +65,7 @@
         { const pb = $("pauseBtn"), t = msg.start || "❚❚ PAUSE"; if (pb.textContent !== t) pb.textContent = t; } // on the title it's the music switch
         document.querySelector('.b[data-k="x"]').classList.toggle("off", !msg.x);
         document.querySelector('.b[data-k="z"]').classList.toggle("off", !msg.z);
-        const bb = $("boostBtn"); bb.hidden = !msg.b; bb.textContent = "BOOST"; bb.classList.toggle("off", !msg.b || msg.b.endsWith("…"));
+        const bb = $("boostBtn"); bb.hidden = !msg.b; { const t = msg.b ? msg.b.replace("…", "") : "BOOST"; if (bb.textContent !== t) bb.textContent = t; } bb.classList.toggle("off", !msg.b || msg.b.endsWith("…"));
       } else if (msg.t === "sheet") {
         // The link can drop a message, so the TV repeats this until the phone says it got it.
         send({ t: "ack", id: msg.id });

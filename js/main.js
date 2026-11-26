@@ -22,10 +22,11 @@
   function ladderLine() {
     const el = document.getElementById("ladder"); if (!el) return;
     if (dev) { el.textContent = "DEV MODE · ALL TEAMS UNLOCKED · TEST PROGRESS IS SAVED SEPARATELY"; return; }
+    const tut = PROGRESS.isUnlocked("bolts") ? "" : "THE TUTORIAL BUTTON UNLOCKS THE BOLTS · ";
     const d = PROGRESS.door();
-    if (!d) { el.textContent = "EVERY TEAM UNLOCKED · " + PROGRESS.data.wins + " WINS"; return; }
+    if (!d) { el.textContent = tut + "EVERY TEAM UNLOCKED · " + PROGRESS.data.wins + " WINS"; return; }
     const [have, need] = d.prog(PROGRESS.data, PROGRESS.data.unlocked);
-    el.textContent = "NEXT TEAM: " + TEAMS.byId[d.id].name + " · " + d.goal + " · " + have + "/" + need;
+    el.textContent = tut + "NEXT TEAM: " + TEAMS.byId[d.id].name + " · " + d.goal + " · " + have + "/" + need;
   }
   setTimeout(ladderLine, 0);
   function cheatFlash(again) {
@@ -46,7 +47,8 @@
     SEL.vsCpu = !human[1] !== !human[2]; // exactly one person: the difficulty level matters
     for (const s of [1, 2]) {
       const prevId = SEL.slot[s] && SEL.slot[s].lockedId;
-      const start = prevId ? SEL.list.indexOf(prevId) : SEL.list.indexOf(s === 1 ? "bolts" : "krush");
+      const first = s === 1 ? (PROGRESS.isUnlocked("bolts") ? "bolts" : PROGRESS.openTeams().find(id => id !== "krush")) : "krush"; // tutorial skipped: start on an open team
+      const start = prevId ? SEL.list.indexOf(prevId) : SEL.list.indexOf(first || "krush");
       SEL.slot[s] = { human: !!human[s], idx: Math.max(0, start), locked: false, lockedId: null, phone: false, flash: 0 };
       if (highlight && s === 1) SEL.slot[s].idx = SEL.list.indexOf(highlight); // the new team, ready to play
       else if (dev) { const v = document.getElementById(s === 1 ? "devT1" : "devT2").value; if (v) SEL.slot[s].idx = SEL.list.indexOf(v); }
@@ -124,8 +126,8 @@
   const UNLOCK = { id: null, t: 0 };
   const DEV_ITEMS = ["DEV: 4TH & 1 AT OPP 30", "DEV: 2-MIN DRILL, DOWN 4", "DEV: GOAL LINE, 1ST & GOAL", "DEV: RED ZONE DEFENSE"];
   // Pause menu: either player can pause (PAUSE on the phone, P / Esc / Enter on the keyboard).
-  const BASE_ITEMS = ["RESUME", "NEW GAME", "QUIT TO TITLE", "WEATHER: ON", "MUSIC: ON", "BACK UP PROGRESS", "RESTORE PROGRESS", "RESET PROGRESS"];
-  const pauseItems = () => BASE_ITEMS.map(i => i.startsWith("WEATHER") ? "WEATHER: " + (WEATHER.enabled() ? "ON" : "OFF") : i.startsWith("MUSIC") ? "MUSIC: " + (MUSIC.enabled() ? "ON" : "OFF") : i === "RESET PROGRESS" && pause.armReset ? "RESET? PICK AGAIN TO ERASE" : i === "NEW GAME" && pause.armNew ? "NEW GAME? PICK AGAIN" : i).concat(dev ? DEV_ITEMS : []);
+  const BASE_ITEMS = ["RESUME", "NEW GAME", "TUTORIAL", "QUIT TO TITLE", "WEATHER: ON", "MUSIC: ON", "BACK UP PROGRESS", "RESTORE PROGRESS", "RESET PROGRESS"];
+  const pauseItems = () => BASE_ITEMS.map(i => i.startsWith("WEATHER") ? "WEATHER: " + (WEATHER.enabled() ? "ON" : "OFF") : i.startsWith("MUSIC") ? "MUSIC: " + (MUSIC.enabled() ? "ON" : "OFF") : i === "RESET PROGRESS" && pause.armReset ? "RESET? PICK AGAIN TO ERASE" : i === "NEW GAME" && pause.armNew ? "NEW GAME? PICK AGAIN" : i === "TUTORIAL" && pause.armTut ? "TUTORIAL? PICK AGAIN" : i).concat(dev ? DEV_ITEMS : []);
   let PAUSE_ITEMS = BASE_ITEMS;
   const pause = { on: false, sel: 0, by: 1, lastHuman: null, msg: "", armReset: false };
 
@@ -142,6 +144,46 @@
     if (mode === "game" && GAME.state.phase !== "over") PROGRESS.onQuit(GAME.state);
     document.body.classList.remove("playing"); mode = "title"; pause.on = false; ladderLine();
   }
+  // ----- Coach Kyle's tutorial -----
+  // Offered before the very first game; also from the title (C / phone TUTORIAL button) and the pause menu.
+  const TUT = { human: null, pause: false, sel: 0, msg: "" };
+  const TUT_ITEMS = ["RESUME", "SKIP THIS DRILL", "QUIT TUTORIAL"];
+  function startTutorial(human) {
+    document.body.classList.add("playing");
+    TUT.human = Object.assign({}, human); TUT.pause = false; TUT.msg = "";
+    pause.lastHuman = Object.assign({}, human); pause.on = false;
+    TUTORIAL.begin([1, 2].filter(s => human[s]));
+    mode = "tutorial";
+  }
+  function offerTutorial(human) { TUT.human = Object.assign({}, human); TUT.t = 0; mode = "offer"; document.body.classList.add("playing"); }
+  function endTutorial(finished) {
+    TUTORIAL.stop();
+    const human = Object.assign({}, TUT.human);
+    if (finished) {
+      const got = PROGRESS.finishTutorial(); ladderLine();
+      if (got) { UNLOCK.id = got; UNLOCK.t = 0; mode = "unlock"; SFX.fanfare(); return; }
+    }
+    openSelect(human, finished ? "bolts" : null);
+  }
+  function tutorialStep(dt) {
+    if (TUT.pause) {
+      for (const s of [1, 2]) {
+        if (INPUT.pressed(s, "start")) { TUT.pause = false; return; }
+        if (INPUT.pressed(s, "up")) TUT.sel = Math.max(0, TUT.sel - 1);
+        if (INPUT.pressed(s, "down")) TUT.sel = Math.min(TUT_ITEMS.length - 1, TUT.sel + 1);
+        if (INPUT.pressed(s, "z") || INPUT.pressed(s, "x")) {
+          const pick = TUT_ITEMS[TUT.sel]; TUT.pause = false;
+          if (pick === "SKIP THIS DRILL") TUTORIAL.skipDrill(TUT.by);
+          else if (pick === "QUIT TUTORIAL") { TUTORIAL.stop(); toTitle(); }
+          return;
+        }
+      }
+      return;
+    }
+    for (const s of [1, 2]) if (INPUT.pressed(s, "start")) { TUT.pause = true; TUT.sel = 0; TUT.by = s; return; }
+    if (TUTORIAL.step(dt)) endTutorial(true);
+  }
+
   let lastPlays = 0, lastPhase = null;
   const wasConn = { 1: false, 2: false }, dropped = { 1: false, 2: false };
 
@@ -153,7 +195,7 @@
   function pauseStep() {
     for (const s of [1, 2]) {
       if (INPUT.pressed(s, "start")) { pause.on = false; return; }
-      if (INPUT.pressed(s, "up") || INPUT.pressed(s, "down")) { pause.msg = ""; if (pause.armReset || pause.armNew) { pause.armReset = pause.armNew = false; PAUSE_ITEMS = pauseItems(); } }
+      if (INPUT.pressed(s, "up") || INPUT.pressed(s, "down")) { pause.msg = ""; if (pause.armReset || pause.armNew || pause.armTut) { pause.armReset = pause.armNew = pause.armTut = false; PAUSE_ITEMS = pauseItems(); } }
       if (INPUT.pressed(s, "up")) pause.sel = Math.max(0, pause.sel - 1); // no wrap-around, so UP from RESUME can't land on RESET
       if (INPUT.pressed(s, "down")) pause.sel = Math.min(PAUSE_ITEMS.length - 1, pause.sel + 1);
       if (INPUT.pressed(s, "z") || INPUT.pressed(s, "x")) {
@@ -177,6 +219,7 @@
           return;
         }
         if (pick === "NEW GAME") { pause.armNew = true; PAUSE_ITEMS = pauseItems(); pause.msg = "THIS ENDS THE CURRENT GAME. PICK AGAIN TO CONFIRM"; return; }
+        if (pick === "TUTORIAL") { pause.armTut = true; PAUSE_ITEMS = pauseItems(); pause.msg = "COACH KYLE'S DRILLS. THIS ENDS THE CURRENT GAME. PICK AGAIN"; return; }
         if (pick === "RESET PROGRESS") { pause.armReset = true; PAUSE_ITEMS = pauseItems(); pause.msg = "THIS ERASES ALL UNLOCKS. PICK AGAIN TO CONFIRM"; return; }
         if (pick.startsWith("RESET?")) { PROGRESS.reset(); pause.armReset = false; SEL.level = 0; try { localStorage.removeItem("dadmo-level"); } catch (e) {} PAUSE_ITEMS = pauseItems(); pause.msg = "PROGRESS RESET · UNDO WITH RESTORE PROGRESS + 'UNDO'"; return; }
         pause.on = false;
@@ -188,6 +231,7 @@
         if (pick === "RESUME") for (const s of [1, 2]) if (dropped[s] && !(window.PADS && window.PADS.connected(s))) { GAME.state.human[s] = false; dropped[s] = false; } // the computer takes over until that phone presses a button
         if (pick.startsWith("NEW GAME?")) { PROGRESS.onQuit(GAME.state); openSelect(Object.assign({}, pause.lastHuman, { 2: GAME.state.human[2] || INPUT.active(2) })); } // every new game starts with team select
         else if (pick === "QUIT TO TITLE") toTitle();
+        else if (pick.startsWith("TUTORIAL?")) { PROGRESS.onQuit(GAME.state); pause.armTut = false; startTutorial(Object.assign({}, pause.lastHuman, { 2: GAME.state.human[2] || INPUT.active(2) })); }
         return;
       }
     }
@@ -197,14 +241,23 @@
   // (offense always attacks to the right), so "right" is forward for whoever has the ball.
   function labelsFor(t) {
     const L = { x: "", z: "", up: "", down: "", left: "", right: "" };
-    if (mode === "title") return Object.assign(L, { x: "START", z: "START", start: MUSIC.enabled() ? "MUSIC: ON" : "MUSIC: OFF" }); // PAUSE toggles music here
+    if (mode === "title") return Object.assign(L, { x: "START", z: "START", b: "TUTORIAL", start: MUSIC.enabled() ? "MUSIC: ON" : "MUSIC: OFF" }); // PAUSE toggles music here
+    if (mode === "offer") return Object.assign(L, { z: "TUTORIAL", x: "SKIP" });
+    if (mode === "tutorial") {
+      if (TUT.pause) return Object.assign(L, { x: "SELECT", z: "SELECT", up: "UP", down: "DOWN" });
+      const T = TUTORIAL.labels(t); if (T) return T;
+      const G = TUTORIAL.stateFor(t); if (!G) return L;
+      return gameLabels(t, G, L);
+    }
     if (mode === "select") { const P = SEL.slot[t]; if (!P.human) return L;
       return P.locked ? Object.assign(L, { x: "CHANGE" }) : Object.assign(L, { x: "BACK", z: "LOCK IN", left: "PREV", right: "NEXT" },
         SEL.vsCpu ? { up: "HARDER", down: "EASIER" } : { up: "PREV", down: "NEXT" }); }
     if (mode === "versus") return Object.assign(L, { z: "NEXT", x: "NEXT" });
     if (mode === "walkout") return Object.assign(L, { z: "SKIP", x: "SKIP" });
     if (mode === "unlock") return Object.assign(L, { z: "PLAY THEM" });
-    const G = GAME.state;
+    return gameLabels(t, GAME.state, L);
+  }
+  function gameLabels(t, G, L) {
     if (!G.human[t]) return L;
     const offense = t === G.poss, car = G.ball && G.ball.state === "held" ? G.ball.holder : null;
     const move = { up: "MOVE", down: "MOVE", left: "MOVE", right: "MOVE" };
@@ -240,12 +293,13 @@
   let musEv = 0, musOver = false, musGame = null;
   function music() {
     if (typeof MUSIC === "undefined") return;
+    MUSIC.duck(mode === "game" ? pause.on : mode === "tutorial" ? TUT.pause : false);
     if (mode === "title") return MUSIC.play("title");
     if (mode === "select" || mode === "versus" || mode === "walkout") return MUSIC.play("select");
-    if (mode === "unlock") return MUSIC.play(null);
+    if (mode === "unlock" || mode === "offer") return MUSIC.play(null);
+    if (mode === "tutorial") return MUSIC.play("select");
     const G = GAME.state;
     if (musGame !== G) { musGame = G; musEv = G.events.length; musOver = false; }
-    MUSIC.duck(pause.on);
     for (; musEv < G.events.length; musEv++) if (G.events[musEv].type === "td" && G.phase !== "over") MUSIC.jingle("td", "game");
     if (G.phase === "over") { if (!musOver) { musOver = true; MUSIC.jingle("final", null); } return; }
     MUSIC.play("game");
@@ -255,6 +309,7 @@
   function musicToggle() { MUSIC.toggle(); PAUSE_ITEMS = pauseItems(); musicLabel(); }
   function musicLabel() { const b = document.getElementById("musicBtn"); if (!b) return; const on = MUSIC.enabled(); b.textContent = "MUSIC: " + (on ? "ON" : "OFF"); b.classList.toggle("off", !on); }
   addEventListener("keydown", e => { if (e.code === "KeyM") musicToggle(); });
+  { const b = document.getElementById("tutBtn"); if (b) b.addEventListener("click", () => { b.blur(); if (mode === "title") startTutorial({ 1: true, 2: INPUT.active(2) }); }); }
   { const b = document.getElementById("musicBtn"); if (b) { b.addEventListener("click", e => { musicToggle(); b.blur(); }); musicLabel(); } }
 
   // A backup/restore sheet left open on a phone closes once the game is unpaused.
@@ -271,21 +326,33 @@
       for (const s of [1, 2]) {
         if (INPUT.pressed(s, "start") && !INPUT.kbHeld(s, "start")) musicToggle(); // phone PAUSE on the title: music on/off (laptop P stays for developer mode)
         for (const k of ["up", "down", "left", "right"]) if (INPUT.pressed(s, k)) { const r = PROGRESS.cheatKey(k); if (r) cheatFlash(r === "again"); }
+        if (INPUT.pressed(s, "b")) return startTutorial({ 1: true, 2: INPUT.active(2) });
         if (INPUT.pressed(s, "z") || INPUT.pressed(s, "x")) {
           const human = { 1: true, 2: INPUT.active(2) };
+          if (PROGRESS.offerTutorial()) return offerTutorial(human); // the very first game: Coach Kyle offers a quick tutorial
           return openSelect(human); // developer mode too: every team is open there, so any team can be tested
         }
       }
       if (demo) { const a = cpuPick(null); start({ 1: false, 2: false }, { 1: a, 2: cpuPick(a) }); }
       return;
     }
+    if (mode === "offer") {
+      TUT.t += dt;
+      for (const s of [1, 2]) if (INPUT.pressed(s, "z") || INPUT.pressed(s, "x")) TUT.human[s] = true; // a second phone joins by pressing too
+      if (TUT.t > 0.5) for (const s of [1, 2]) {
+        if (INPUT.pressed(s, "z")) return startTutorial(TUT.human);
+        if (INPUT.pressed(s, "x")) return openSelect(TUT.human);
+      }
+      return;
+    }
+    if (mode === "tutorial") return tutorialStep(dt);
     if (mode === "select") return selectStep(dt);
     if (mode === "versus") return versusStep(dt);
     if (mode === "walkout") return walkoutStep(dt);
     if (mode === "unlock") { UNLOCK.t += dt; if (UNLOCK.t > 1.6 && (INPUT.pressed(1, "z") || INPUT.pressed(2, "z"))) { const id = UNLOCK.id; UNLOCK.id = null; openSelect(Object.assign({}, pause.lastHuman, { 2: GAME.state.human[2] || INPUT.active(2) }), id); } return; }
     const G = GAME.state;
     if (pause.on) return pauseStep();
-    if (!demo && G.phase !== "over" && (INPUT.pressed(1, "start") || INPUT.pressed(2, "start"))) { pause.on = true; pause.sel = 0; pause.msg = ""; pause.armReset = false; pause.armNew = false; PAUSE_ITEMS = pauseItems(); return; }
+    if (!demo && G.phase !== "over" && (INPUT.pressed(1, "start") || INPUT.pressed(2, "start"))) { pause.on = true; pause.sel = 0; pause.msg = ""; pause.armReset = false; pause.armNew = false; pause.armTut = false; PAUSE_ITEMS = pauseItems(); return; }
     // Player 2 can take over from the computer mid-game only by connecting a phone.
     // A phone takes over a computer-run team only once someone presses a button on it (a phone that just
     // rejoins in a pocket shouldn't freeze the computer's team).
@@ -294,7 +361,7 @@
     for (const s of [1, 2]) {
       const on = !!(window.PADS && window.PADS.connected(s));
       if (!demo && G.human[s] && wasConn[s] && !on && G.phase !== "over") {
-        dropped[s] = true; pause.on = true; pause.sel = 0; pause.armReset = false; pause.armNew = false; PAUSE_ITEMS = pauseItems();
+        dropped[s] = true; pause.on = true; pause.sel = 0; pause.armReset = false; pause.armNew = false; pause.armTut = false; PAUSE_ITEMS = pauseItems();
         pause.msg = "P" + s + " PHONE DROPPED · REOPEN IT, OR RESUME: CPU PLAYS";
       }
       wasConn[s] = on;
@@ -334,6 +401,8 @@
     else if (mode === "versus") SCREENS.versus(VS.teams, VS.t);
     else if (mode === "walkout") SCREENS.walkout(VS.teams[WALK.i], WALK.i, WALK.t);
     else if (mode === "unlock") SCREENS.challenger(UNLOCK.id, UNLOCK.t);
+    else if (mode === "offer") TUTORIAL.drawOffer(now / 1000, !!(TUT.human && TUT.human[2]));
+    else if (mode === "tutorial") { TUTORIAL.draw(now / 1000); if (TUT.pause) RENDER.pauseMenu(TUT_ITEMS, TUT.sel, now / 1000, "COACH KYLE'S TUTORIAL"); }
   }
   // For tests: run n frames by hand (the browser pauses animation when the window is hidden).
   let fakeNow = 0;
@@ -354,5 +423,5 @@
   document.addEventListener("visibilitychange", stayAwake);
   setInterval(stayAwake, 30000); // re-ask if the system dropped it (e.g. after the lid was closed)
 
-  window.DADMO = { tick, start, toTitle, pause, openSelect, SEL, VS, UNLOCK, get mode() { return mode; } };
+  window.DADMO = { tick, start, toTitle, pause, openSelect, SEL, VS, UNLOCK, TUT, startTutorial, endTutorial, get mode() { return mode; } };
 })();

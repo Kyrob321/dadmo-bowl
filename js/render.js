@@ -225,7 +225,7 @@ const RENDER = (() => {
     if (G.mash && p === G.mash.car) face = G.mash.def.x > p.x ? 1 : -1;
     // superstar: a gold star under his feet so you can always find him
     if (p.star && G.powers !== false) starIcon(x, y + 3, time);
-    const onFire = GAME.fireOn(p);
+    const onFire = (G.api || GAME).fireOn(p);
     if (onFire) flames(x, y, time, p.seed, true);
     const img = SPRITES.get(p.team, p.skin || 0, pose, frame, face);
     ctx.drawImage(img, x - SPRITES.OX, y - SPRITES.OY);
@@ -370,7 +370,7 @@ const RENDER = (() => {
         text(p.power, x + (left ? 4 : -4), by + 12, T.trim, 8, al);
         text(p.blurb, x + (left ? 4 : -4), by + 21, "#9fb1c5", 8, al);
       }
-      if (GAME.fireOn(p)) { ctx.fillStyle = "rgba(0,0,0,.62)"; ctx.fillRect(bx, by - 11, 64, 11); text("ON FIRE", bx + 4, by - 10, Math.floor(time * 8) % 2 ? "#ff7a1a" : "#ffe14a", 8); }
+      if ((G.api || GAME).fireOn(p)) { ctx.fillStyle = "rgba(0,0,0,.62)"; ctx.fillRect(bx, by - 11, 64, 11); text("ON FIRE", bx + 4, by - 10, Math.floor(time * 8) % 2 ? "#ff7a1a" : "#ffe14a", 8); }
     }
   }
   function prompts(G) {
@@ -400,12 +400,13 @@ const RENDER = (() => {
     text(lines[2] + " P2", VW - 6, VH - 11, T[2].trim, 8, "right");
   }
 
-  function kickMeter(G) {
+  function kickMeter(G, at) {
     if (G.phase !== "kick") return;
-    const k = G.kick, w = 180, x0 = VW / 2 - w / 2, y0 = VH - 48;
+    const cx = at && at.x != null ? at.x : VW / 2;
+    const k = G.kick, w = 180, x0 = cx - w / 2, y0 = at && at.y != null ? at.y : VH - 48;
     const label = k.type === "fg" ? "FIELD GOAL · " + Math.round(100 - G.los + 17) + " YDS" : k.type === "punt" ? "PUNT" : "KICKOFF";
     ctx.fillStyle = "rgba(0,0,0,.75)"; ctx.fillRect(x0 - 8, y0 - 18, w + 16, 34);
-    text(label, VW / 2, y0 - 13, "#ffb627", 8, "center");
+    text(label, cx, y0 - 13, "#ffb627", 8, "center");
     ctx.fillStyle = "#c8223a"; ctx.fillRect(x0, y0, w, 8);
     if (k.type === "fg") {
       // Green is exactly the window that makes this kick.
@@ -513,8 +514,11 @@ const RENDER = (() => {
     text(line, VW / 2, y0 + 5, b.color, 8, "center");
   }
 
-  function draw(G, time) {
+  // opts.tutorial: the field only (no scoreboard, name boxes or prompt bar; the coach box takes their place).
+  function draw(G, time, opts) {
     if (!ctx) return;
+    opts = opts || {};
+    if (G.cam != null) camX = G.cam; // each game keeps its own camera (the tutorial draws two)
     let target = G.ball ? G.ball.x : 50;
     if (G.phase === "kick") target = G.kick.type === "kickoff" ? 45 : G.los + 8;
     if (G.phase === "presnap") target = G.los + 11;
@@ -522,6 +526,7 @@ const RENDER = (() => {
     if (G.phase === "live" && G.play && G.play.type === "pass" && !G.play.thrown) target = G.los + 10;
     camX += (target - camX) * 0.12;
     camX = clamp(camX, -10 + VW / 2 / PX, 110 - VW / 2 / PX);
+    G.cam = camX;
     // Screen shake on big hits and touchdowns.
     const sh = G.shake > 0 ? Math.round((Math.random() - 0.5) * G.shake * 14) : 0;
     ctx.save(); ctx.translate(sh, sh ? Math.round((Math.random() - 0.5) * G.shake * 8) : 0);
@@ -541,6 +546,7 @@ const RENDER = (() => {
     for (const t of [1, 2]) if (G.human[t] && G.phase !== "kick" && G.phase !== "over" && G.phase !== "onside") marker(G, G.control[t], t, time);
     ctx.restore();
     weather(G, time);
+    if (opts.tutorial) { kickMeter(G, opts.meter); mashMeter(G); bannerDraw(G); return; }
     hud(G); kickMeter(G); mashMeter(G); bannerDraw(G); blurbs(G, time); lowerThird(G, time); prompts(G);
     if (G.fireMsg) { const k = G.fireMsg; text("HE'S ON FIRE!", VW / 2, 52, Math.floor(time * 8) % 2 ? "#ff7a1a" : "#ffe14a", 16, "center"); text(k.name, VW / 2, 72, CFG.TEAMS[k.team].trim, 8, "center"); }
     if (window.DADMO_DEV) { ctx.fillStyle = "#ffb627"; ctx.fillRect(VW - 34, VH - 26, 30, 10); text("DEV", VW - 31, VH - 25, "#000", 8); }
@@ -626,5 +632,10 @@ const RENDER = (() => {
     if (code && !msg) text("ROOM " + code + " · PHONES STAY CONNECTED", VW / 2, 272, "#7fd68f", 8, "center");
   }
 
-  return { init, draw, pauseMenu, text, ctx: () => ctx, VW, VH };
+  // Draw into another canvas for a moment (the tutorial's split screen draws each half off screen first).
+  function drawTo(canvas, G, time, opts) {
+    const keep = [cv, ctx]; cv = canvas; ctx = canvas.getContext("2d"); ctx.imageSmoothingEnabled = false;
+    try { draw(G, time, opts); } finally { cv = keep[0]; ctx = keep[1]; }
+  }
+  return { init, draw, drawTo, pauseMenu, text, ctx: () => ctx, VW, VH };
 })();
