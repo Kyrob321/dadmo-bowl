@@ -22,7 +22,7 @@ const PROGRESS = (() => {
   // If the main save is ever unreadable, fall back to the copy made after the last finished game.
   try { if (localStorage.getItem(KEY) && !JSON.parse(localStorage.getItem(KEY)).unlocked) data = load(KEY + "-backup"); } catch (e) { data = load(KEY + "-backup"); }
 
-  function fresh() { return { v: 1, unlocked: START.slice(), games: 0, wins: 0, takeaways: 0, bestTds: 0, bestLongWin: false, live: null, log: [], vs: {} }; }
+  function fresh() { return { v: 1, unlocked: START.slice(), games: 0, wins: 0, takeaways: 0, bestTds: 0, bestLongWin: false, live: null, log: [], vs: {}, cheats: {}, cheatOn: {} }; }
   function load(key) {
     let d = null; try { d = JSON.parse(localStorage.getItem(key) || "null"); } catch (e) {}
     d = Object.assign(fresh(), d || {});
@@ -103,13 +103,10 @@ const PROGRESS = (() => {
   // The first game ever offers the tutorial (until it's been done once or the Bolts are already open).
   const offerTutorial = () => !dev && !data.tutorialDone && data.games === 0 && !data.unlocked.includes("bolts");
 
-  // ----- cheat code (title screen, phone D-pad or keyboard arrows) -----
-  let buf = [];
-  function cheatKey(k) {
-    buf.push(k); if (buf.length > CHEAT.length) buf.shift();
-    if (buf.join() !== CHEAT.join()) return false;
-    buf = [];
-    if (data.unlocked.includes("lawnchairs")) return "again";
+  // ----- the Lawn Chairs code (typed on the title screen; js/cheats.js watches the D-pad for every code) -----
+  // Returns true if the team is new, false if it was already here.
+  function cheatKeyUnlock() {
+    if (data.unlocked.includes("lawnchairs")) return false;
     data.unlocked.push("lawnchairs"); save();
     return true;
   }
@@ -123,7 +120,7 @@ const PROGRESS = (() => {
   // UTF-8 safe base64 (team or player names with any character can't break the backup).
   const enc = s => btoa(unescape(encodeURIComponent(s)));
   const dec = s => { const raw = atob(s); try { return decodeURIComponent(escape(raw)); } catch (e) { return raw; } }; // older codes were plain
-  function code() { return "DADMO-" + enc(JSON.stringify({ u: data.unlocked, g: data.games, w: data.wins, t: data.takeaways, b: data.bestTds, l: data.bestLongWin, v: data.vs || {}, k: !!data.tutorialDone })); }
+  function code() { return "DADMO-" + enc(JSON.stringify({ u: data.unlocked, g: data.games, w: data.wins, t: data.takeaways, b: data.bestTds, l: data.bestLongWin, v: data.vs || {}, k: !!data.tutorialDone, c: data.cheats || {}, o: data.cheatOn || {} })); }
   // Only well-formed matchup records come back (a damaged one is dropped, not crashed on).
   function cleanVs(v) {
     const out = {}; if (!v || typeof v !== "object") return null;
@@ -139,11 +136,12 @@ const PROGRESS = (() => {
       if (!Array.isArray(o.u)) return false;
       const vs = cleanVs(o.v) || data.vs || {}; // matchup history comes back too (older codes keep what's here)
       keepUndo();
-      data = Object.assign(fresh(), { unlocked: o.u.filter(id => TEAMS.byId[id]), games: +o.g || 0, wins: +o.w || 0, takeaways: +o.t || 0, bestTds: +o.b || 0, bestLongWin: !!o.l, vs, tutorialDone: !!o.k });
+      data = Object.assign(fresh(), { unlocked: o.u.filter(id => TEAMS.byId[id]), games: +o.g || 0, wins: +o.w || 0, takeaways: +o.t || 0, bestTds: +o.b || 0, bestLongWin: !!o.l, vs, tutorialDone: !!o.k,
+        cheats: o.c && typeof o.c === "object" ? o.c : {}, cheatOn: o.o && typeof o.o === "object" ? o.o : {} });
       save(); return true;
     } catch (e) { return false; }
   }
 
-  return { isUnlocked, card, door, openTeams, onPlay, onQuit, onGameOver, cheatKey, reset, code, restore, setDev, save, finishTutorial, offerTutorial,
+  return { isUnlocked, card, door, openTeams, onPlay, onQuit, onGameOver, cheatKeyUnlock, reset, code, restore, setDev, save, finishTutorial, offerTutorial,
     get data() { return data; }, LADDER, START, CHEAT };
 })();

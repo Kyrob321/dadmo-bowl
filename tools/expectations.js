@@ -204,3 +204,18 @@ window.EXPECT_T10.onsideLand = [44, 56];
 // Review fixes: practice on Z not X, which button goes with which bar, RIGHT/LEFT keys plus phone labels on the
 // moves card, when the RUN bar appears, truck "downfield (not linemen)", mash "tie? tap X and Z fast".
 // Checked: single + split screenshots, skip path, labels, full bot run 48.5 s, no console errors.
+
+// ---------- T13: cheat codes ----------
+// Expected (written before testing): every cheat locked on a fresh save and shown only as a padlock in the CHEATS
+// menu; typing its D-pad code on the title screen unlocks it and switches it on; Z toggles it, the weather cycles;
+// power-ups touch only human teams (speed x1.12, fire +8, boost no recharge, kick needle x0.5); looks touch everyone;
+// RESET PROGRESS relocks; the tutorial plays with cheats off and gets them back after.
+// RESULT: Bolts unlock by finishing the tutorial checked on a blank non-dev save. All 9 codes unlock and start on;
+// re-typing says already unlocked. Speed: human/CPU top-speed ratio 1.107 vs 0.965 (play-to-play variance); fire on
+// human players only; toe needle 0.115 vs 0.230 per tick, CPU kick unchanged; 3 boosts in a row. Big heads, giants,
+// snow, fire, retro screenshots. Pause -> CHEATS -> back, title CHEATS button, AUTO weather back to the home stadium's.
+// Codes are printed only in the cheat book (kept out of this repo).
+// Review fixes (virtual Kyle): power-ups now fully off in the tutorial (flag set at newGame, toe/boost included);
+// RESET / RESTORE re-apply cheats right away (retro screen, forced weather); picking a weather turns weather on only
+// when the pick changes, so the pause menu's WEATHER: OFF sticks; versus screen shows the Weather Machine's pick.
+// Re-checked: weather OFF survives apply(), tutorial runs clear with fire/speed off and gets rain back after.

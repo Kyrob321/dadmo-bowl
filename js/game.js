@@ -67,10 +67,12 @@ function makeGame() {
       if (fireOn(p)) extra += K.FIRE_BOOST;
       extra += 3 * rallyLevel(p.team);
       if (extra) { for (const r in p.r) p.r[r] = clamp(p.r[r] + extra, 25, 99); p.spd = RATINGS.speed(p.r.spd); }
+      if (cheat("speed", p.team)) p.spd *= 1.12; // SUPER SPEED cheat
     }
   }
   const fireKey = p => p.team + ":" + p.key;
-  const fireOn = p => powersOn() && !!(G.fire[fireKey(p)] && G.fire[fireKey(p)].on);
+  const cheat = (id, team) => CHEATS.on(id) && G.human[team] && !G.tutorial; // power-up cheats help the people playing, not the computer (and stay out of the tutorial)
+  const fireOn = p => cheat("fire", p.team) || (powersOn() && !!(G.fire[fireKey(p)] && G.fire[fireKey(p)].on));
   function bigPlay(p) {
     if (!p || !p.key || !powersOn()) return;
     const f = G.fire[fireKey(p)] = G.fire[fireKey(p)] || { n: 0, on: false };
@@ -179,7 +181,7 @@ function makeGame() {
     const home = (teams && teams.home) || (Math.random() < 0.5 ? 1 : 2);
     if (teams) setTeams(teams[1], teams[2], home);
     Object.assign(G, {
-      human: Object.assign({ 1: true, 2: false }, human || {}),
+      human: Object.assign({ 1: true, 2: false }, human || {}), tutorial: !!(teams && teams.tutorial),
       score: { 1: 0, 2: 0 }, quarter: 1, clock: Q, clockRunning: false, ot: false,
       banner: null, events: [], mash: null, next: null, overT: 0, plays: 0,
       time: 0, fx: [], pops: [], shake: 0, celebrate: 0, hype: 0, rep: null, fire: {}, rally: { 1: 0, 2: 0 }, fireMsg: null,
@@ -294,7 +296,7 @@ function makeGame() {
   function updateKick(dt) {
     const k = G.kick; k.t += dt;
     const spd = k.type === "fg" ? 1.1 + (100 - G.los) / 45 : 1.15;
-    k.needle += k.dir * spd * dt;
+    k.needle += k.dir * spd * dt * (cheat("toe", k.team) ? 0.5 : 1); // GOLDEN TOE cheat: half-speed needle
     if (k.needle > 1) { k.needle = 1; k.dir = -1; }
     if (k.needle < 0) { k.needle = 0; k.dir = 1; }
     let acc = null, onside = false;
@@ -518,7 +520,7 @@ function makeGame() {
     if (!p || p.down > 0) return;
     // BOOST: a short burst of speed for your defender, then a few seconds to recharge.
     // The recharge belongs to the team, so switching players doesn't hand out a fresh boost.
-    if (INPUT.pressed(team, "b") && G.time - G.boostAt[team] >= K.BOOST_CD) { p.burst = K.BOOST_TIME; G.boostAt[team] = G.time; pop("BOOST!", p.x, p.y, "#ffb627"); }
+    if (INPUT.pressed(team, "b") && (G.time - G.boostAt[team] >= K.BOOST_CD || cheat("boost", team))) { p.burst = K.BOOST_TIME; G.boostAt[team] = G.time; pop("BOOST!", p.x, p.y, "#ffb627"); }
     if (INPUT.pressed(team, "z")) {
       if (b.state === "air") {
         const far = Math.hypot(p.x - b.tx, p.y - b.ty);

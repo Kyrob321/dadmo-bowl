@@ -105,3 +105,6 @@ body.playing #xsnow { display: none; } /* the game draws its own snow on the fie
 .xmas .title { gap: 1.5vh; } /* room for the holiday line at 720p */
 .xmas .title { gap: 1.3vh; padding-top: calc(2vh + 24px); } /* room above the logo for its Santa hat */
 .xmas .logo { font-size: clamp(28px, 5vw, 84px); }
+
+/* RETRO GREEN cheat: the game screen as an old green handheld */
+#game.retro { filter: grayscale(1) sepia(1) hue-rotate(52deg) saturate(2.4) brightness(.82) contrast(1.15); }

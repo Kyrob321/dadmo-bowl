@@ -2,7 +2,7 @@
 // Each pose is a set of joints (in pixels, origin at the feet, facing right). Sprites are
 // rendered once per team / skin / pose / frame / facing into small canvases and reused.
 const SPRITES = (() => {
-  const SW = 26, SH = 38, OX = 13, OY = 36; // headroom above the helmet for jumps (and the holiday Santa hat)
+  const SW = 26, SH = 44, OX = 13, OY = 42; // headroom above the helmet for jumps, the holiday Santa hat and the BIG HEADS cheat
   const SKINS = [["#f1c27d", "#d29a5c"], ["#c68642", "#9c6530"], ["#8d5524", "#6b3d17"], ["#e0ac69", "#bf8a4a"]];
   const cache = new Map();
 
@@ -121,12 +121,21 @@ const SPRITES = (() => {
     brush(ctx, hip[0], hip[1], 4, pal.pants);
     limbLeg(pose.fk, pal.pants, pal.jersey);
     // helmet: shell, stripe, facemask, a glimpse of face
-    const hx = Math.round(head[0]) - 2, hy = Math.round(head[1]) - 2;
-    ctx.fillStyle = pal.helmet; ctx.fillRect(hx, hy, 5, 5); ctx.fillRect(hx + 1, hy - 1, 3, 1);
-    ctx.fillStyle = pal.helmetShade; ctx.fillRect(hx, hy + 4, 3, 1);
-    ctx.fillStyle = pal.stripe; ctx.fillRect(hx + 1, hy - 1, 1, 4);
-    ctx.fillStyle = pal.skin; ctx.fillRect(hx + 3, hy + 2, 1, 2);
-    ctx.fillStyle = "#9aa0a6"; ctx.fillRect(hx + 4, hy + 1, 1, 3); ctx.fillRect(hx + 5, hy + 2, 1, 1);
+    const big = typeof CHEATS !== "undefined" && CHEATS.on("bighead");
+    if (big) { // BIG HEADS cheat: a helmet twice the size, sitting on the same neck
+      const k = 2, bx = Math.round(head[0]) - 5, by = Math.round(head[1]) - 7;
+      const R = (x, y, w, h, col) => { ctx.fillStyle = col; ctx.fillRect(bx + x * k, by + y * k, w * k, h * k); };
+      R(0, 0, 5, 5, pal.helmet); R(1, -1, 3, 1, pal.helmet); R(0, 4, 3, 1, pal.helmetShade); R(1, -1, 1, 4, pal.stripe);
+      R(3, 2, 1, 2, pal.skin); R(4, 1, 1, 3, "#9aa0a6"); R(5, 2, 1, 1, "#9aa0a6");
+    }
+    const hx = Math.round(head[0]) - 2, hy = Math.round(head[1]) - 2 - (big ? 6 : 0);
+    if (!big) {
+      ctx.fillStyle = pal.helmet; ctx.fillRect(hx, hy, 5, 5); ctx.fillRect(hx + 1, hy - 1, 3, 1);
+      ctx.fillStyle = pal.helmetShade; ctx.fillRect(hx, hy + 4, 3, 1);
+      ctx.fillStyle = pal.stripe; ctx.fillRect(hx + 1, hy - 1, 1, 4);
+      ctx.fillStyle = pal.skin; ctx.fillRect(hx + 3, hy + 2, 1, 2);
+      ctx.fillStyle = "#9aa0a6"; ctx.fillRect(hx + 4, hy + 1, 1, 3); ctx.fillRect(hx + 5, hy + 2, 1, 1);
+    }
     // Christmas season: a Santa hat on every helmet, flopping toward the back.
     if (typeof HOLIDAY !== "undefined" && HOLIDAY.on) {
       ctx.fillStyle = "#f3efe4"; ctx.fillRect(hx - 1, hy - 2, 7, 2);                       // white fur trim
@@ -169,7 +178,7 @@ const SPRITES = (() => {
   // Returns a ready canvas. face: 1 right, -1 left.
   function get(team, skin, pose, frame, face) {
     const T = CFG.TEAMS[team];
-    const key = T.color + (T.helmet || T.trim) + (T.pants || "") + (T.number || "") + "|" + skin + "|" + pose + "|" + frame + "|" + face;
+    const key = T.color + (T.helmet || T.trim) + (T.pants || "") + (T.number || "") + "|" + skin + "|" + pose + "|" + frame + "|" + face + (typeof CHEATS !== "undefined" && CHEATS.on("bighead") ? "|big" : "");
     let c = cache.get(key);
     if (c) return c;
     const base = render(POSES[pose](frame || 0), palette(team, skin));

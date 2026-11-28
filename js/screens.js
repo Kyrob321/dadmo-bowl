@@ -157,7 +157,7 @@ const SCREENS = (() => {
     }
     if (t > 1.2 && teams.home) {
       const ht = TEAMS.byId[teams[teams.home]];
-      text("AT " + ht.short + " STADIUM · " + (WEATHER.enabled() ? WEATHER.KINDS[ht.home].label : "WEATHER OFF"), VW / 2, 268, "#9fb1c5", 8, "center");
+      text("AT " + ht.short + " STADIUM · " + (WEATHER.enabled() ? WEATHER.KINDS[typeof CHEATS !== "undefined" && CHEATS.value("weather") !== "AUTO" ? CHEATS.value("weather") : ht.home].label : "WEATHER OFF"), VW / 2, 268, "#9fb1c5", 8, "center");
     }
     if (t > 1.6) text("Z: MEET THE SUPERSTARS", VW / 2, 279, Math.floor(t * 3) % 2 ? "#f3efe4" : "#ffb627", 8, "center");
   }

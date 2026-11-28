@@ -228,7 +228,9 @@ const RENDER = (() => {
     const onFire = (G.api || GAME).fireOn(p);
     if (onFire) flames(x, y, time, p.seed, true);
     const img = SPRITES.get(p.team, p.skin || 0, pose, frame, face);
-    ctx.drawImage(img, x - SPRITES.OX, y - SPRITES.OY);
+    if (p.star && typeof CHEATS !== "undefined" && CHEATS.on("giants")) // GIANT SUPERSTARS cheat: twice as tall
+      ctx.drawImage(img, x - SPRITES.OX * 2, y - SPRITES.OY * 2, SPRITES.SW * 2, SPRITES.SH * 2);
+    else ctx.drawImage(img, x - SPRITES.OX, y - SPRITES.OY);
     if (onFire) flames(x, y, time, p.seed, false);
   }
   // After a touchdown the scoring team's mascot moonwalks along the sideline: facing one way, gliding the other.

@@ -8,7 +8,7 @@
   // Developer mode: ?dev in the address, or hold PAUSE for 3 seconds on the title screen.
   let dev = params.has("dev"), holdStart = 0;
   function setDev(on) {
-    dev = on; window.DADMO_DEV = on; PROGRESS.setDev(on); ladderLine();
+    dev = on; window.DADMO_DEV = on; PROGRESS.setDev(on); ladderLine(); CHEATS.apply();
     const p = document.getElementById("devpanel"); if (!p) return;
     p.hidden = !on;
     if (on && !p.dataset.ready) {
@@ -29,9 +29,11 @@
     el.textContent = tut + "NEXT TEAM: " + TEAMS.byId[d.id].name + " · " + d.goal + " · " + have + "/" + need;
   }
   setTimeout(ladderLine, 0);
-  function cheatFlash(again) {
+  function cheatFlash(r) {
     const el = document.getElementById("cheat"); if (!el) return;
-    el.textContent = again ? "THE LAWN CHAIRS ARE ALREADY HERE" : "THE LAWN CHAIRS HAVE ARRIVED";
+    const c = r.cheat;
+    el.textContent = c.id === "lawnchairs" ? (r.fresh ? "THE LAWN CHAIRS HAVE ARRIVED" : "THE LAWN CHAIRS ARE ALREADY HERE")
+      : r.fresh ? "CHEAT UNLOCKED: " + c.name + "!" : c.name + " IS ALREADY UNLOCKED · SWITCH IT IN CHEATS";
     el.hidden = false; el.classList.remove("go"); void el.offsetWidth; el.classList.add("go");
     SFX.chime(); clearTimeout(cheatFlash.t); cheatFlash.t = setTimeout(() => { el.hidden = true; }, 3200);
     ladderLine();
@@ -126,7 +128,7 @@
   const UNLOCK = { id: null, t: 0 };
   const DEV_ITEMS = ["DEV: 4TH & 1 AT OPP 30", "DEV: 2-MIN DRILL, DOWN 4", "DEV: GOAL LINE, 1ST & GOAL", "DEV: RED ZONE DEFENSE"];
   // Pause menu: either player can pause (PAUSE on the phone, P / Esc / Enter on the keyboard).
-  const BASE_ITEMS = ["RESUME", "NEW GAME", "TUTORIAL", "QUIT TO TITLE", "WEATHER: ON", "MUSIC: ON", "BACK UP PROGRESS", "RESTORE PROGRESS", "RESET PROGRESS"];
+  const BASE_ITEMS = ["RESUME", "NEW GAME", "TUTORIAL", "CHEATS", "QUIT TO TITLE", "WEATHER: ON", "MUSIC: ON", "BACK UP PROGRESS", "RESTORE PROGRESS", "RESET PROGRESS"];
   const pauseItems = () => BASE_ITEMS.map(i => i.startsWith("WEATHER") ? "WEATHER: " + (WEATHER.enabled() ? "ON" : "OFF") : i.startsWith("MUSIC") ? "MUSIC: " + (MUSIC.enabled() ? "ON" : "OFF") : i === "RESET PROGRESS" && pause.armReset ? "RESET? PICK AGAIN TO ERASE" : i === "NEW GAME" && pause.armNew ? "NEW GAME? PICK AGAIN" : i === "TUTORIAL" && pause.armTut ? "TUTORIAL? PICK AGAIN" : i).concat(dev ? DEV_ITEMS : []);
   let PAUSE_ITEMS = BASE_ITEMS;
   const pause = { on: false, sel: 0, by: 1, lastHuman: null, msg: "", armReset: false };
@@ -188,11 +190,12 @@
   const wasConn = { 1: false, 2: false }, dropped = { 1: false, 2: false };
 
   if (window.PADS) window.PADS.onRestore = (s, str) => {
-    const ok = PROGRESS.restore(str);
+    const ok = PROGRESS.restore(str); CHEATS.apply();
     pause.msg = ok ? "PROGRESS RESTORED! (UNDO PUTS IT BACK)" : "THAT CODE DIDN'T WORK";
     return { kind: "result", ok, text: ok ? "PROGRESS RESTORED! (CHANGED YOUR MIND? RESTORE AGAIN WITH UNDO)" : "THAT CODE DIDN'T WORK. CHECK IT WAS COPIED WHOLE." };
   };
   function pauseStep() {
+    if (pause.cheats) { if (CHEATS.step(1 / 60)) { pause.cheats = false; PAUSE_ITEMS = pauseItems(); } return; }
     for (const s of [1, 2]) {
       if (INPUT.pressed(s, "start")) { pause.on = false; return; }
       if (INPUT.pressed(s, "up") || INPUT.pressed(s, "down")) { pause.msg = ""; if (pause.armReset || pause.armNew || pause.armTut) { pause.armReset = pause.armNew = pause.armTut = false; PAUSE_ITEMS = pauseItems(); } }
@@ -215,13 +218,14 @@
         if (pick === "RESTORE PROGRESS") {
           if (phone) { window.PADS.sheet(s, { kind: "restore" }); sheetOpen[s] = true; pause.msg = "PASTE THE CODE ON P" + s + "'S PHONE"; return; }
           const str = window.prompt("Paste your Dadmo Bowl backup code (or type UNDO to bring back progress from before the last reset):");
-          pause.msg = str == null ? "" : PROGRESS.restore(str) ? "PROGRESS RESTORED!" : "THAT CODE DIDN'T WORK";
+          pause.msg = str == null ? "" : (PROGRESS.restore(str) && (CHEATS.apply(), true)) ? "PROGRESS RESTORED!" : "THAT CODE DIDN'T WORK";
           return;
         }
         if (pick === "NEW GAME") { pause.armNew = true; PAUSE_ITEMS = pauseItems(); pause.msg = "THIS ENDS THE CURRENT GAME. PICK AGAIN TO CONFIRM"; return; }
+        if (pick === "CHEATS") { pause.cheats = true; CHEATS.open(); return; }
         if (pick === "TUTORIAL") { pause.armTut = true; PAUSE_ITEMS = pauseItems(); pause.msg = "COACH KYLE'S DRILLS. THIS ENDS THE CURRENT GAME. PICK AGAIN"; return; }
         if (pick === "RESET PROGRESS") { pause.armReset = true; PAUSE_ITEMS = pauseItems(); pause.msg = "THIS ERASES ALL UNLOCKS. PICK AGAIN TO CONFIRM"; return; }
-        if (pick.startsWith("RESET?")) { PROGRESS.reset(); pause.armReset = false; SEL.level = 0; try { localStorage.removeItem("dadmo-level"); } catch (e) {} PAUSE_ITEMS = pauseItems(); pause.msg = "PROGRESS RESET · UNDO WITH RESTORE PROGRESS + 'UNDO'"; return; }
+        if (pick.startsWith("RESET?")) { PROGRESS.reset(); CHEATS.apply(); pause.armReset = false; SEL.level = 0; try { localStorage.removeItem("dadmo-level"); } catch (e) {} PAUSE_ITEMS = pauseItems(); pause.msg = "PROGRESS RESET · UNDO WITH RESTORE PROGRESS + 'UNDO'"; return; }
         pause.on = false;
         const D = GAME.dev;
         if (pick === "DEV: 4TH & 1 AT OPP 30") D.situation({ down: 4, togo: 1, los: 70, poss: 1 });
@@ -243,6 +247,7 @@
     const L = { x: "", z: "", up: "", down: "", left: "", right: "" };
     if (mode === "title") return Object.assign(L, { x: "START", z: "START", b: "TUTORIAL", start: MUSIC.enabled() ? "MUSIC: ON" : "MUSIC: OFF" }); // PAUSE toggles music here
     if (mode === "offer") return Object.assign(L, { z: "TUTORIAL", x: "SKIP" });
+    if (mode === "cheats" || (mode === "game" && pause.on && pause.cheats)) return Object.assign(L, CHEATS.labels());
     if (mode === "tutorial") {
       if (TUT.pause) return Object.assign(L, { x: "SELECT", z: "SELECT", up: "UP", down: "DOWN" });
       const T = TUTORIAL.labels(t); if (T) return T;
@@ -261,7 +266,7 @@
     if (!G.human[t]) return L;
     const offense = t === G.poss, car = G.ball && G.ball.state === "held" ? G.ball.holder : null;
     const move = { up: "MOVE", down: "MOVE", left: "MOVE", right: "MOVE" };
-    const boost = { b: G.boostAt && G.time - G.boostAt[t] < CFG.CAL.BOOST_CD ? "BOOST…" : "BOOST" }; // the defense BOOST button ("…" = dim while it recharges)
+    const boost = { b: G.boostAt && G.time - G.boostAt[t] < CFG.CAL.BOOST_CD && !CHEATS.on("boost") ? "BOOST…" : "BOOST" }; // the defense BOOST button ("…" = dim while it recharges)
     if (pause.on) return Object.assign(L, { x: "SELECT", z: "SELECT", up: "UP", down: "DOWN" });
     if (G.mash) return G.mash.pause > 0 ? Object.assign(L, { x: "READY", z: "READY" }) : Object.assign(L, { x: "MASH!", z: "MASH!" });
     switch (G.phase) {
@@ -294,7 +299,7 @@
   function music() {
     if (typeof MUSIC === "undefined") return;
     MUSIC.duck(mode === "game" ? pause.on : mode === "tutorial" ? TUT.pause : false);
-    if (mode === "title") return MUSIC.play("title");
+    if (mode === "title" || mode === "cheats") return MUSIC.play("title");
     if (mode === "select" || mode === "versus" || mode === "walkout") return MUSIC.play("select");
     if (mode === "unlock" || mode === "offer") return MUSIC.play(null);
     if (mode === "tutorial") return MUSIC.play("select");
@@ -309,6 +314,8 @@
   function musicToggle() { MUSIC.toggle(); PAUSE_ITEMS = pauseItems(); musicLabel(); }
   function musicLabel() { const b = document.getElementById("musicBtn"); if (!b) return; const on = MUSIC.enabled(); b.textContent = "MUSIC: " + (on ? "ON" : "OFF"); b.classList.toggle("off", !on); }
   addEventListener("keydown", e => { if (e.code === "KeyM") musicToggle(); });
+  { const b = document.getElementById("cheatBtn"); if (b) b.addEventListener("click", () => { b.blur(); if (mode === "title") { document.body.classList.add("playing"); CHEATS.open(); mode = "cheats"; } }); }
+  setTimeout(() => CHEATS.apply(), 0); // the saved weather choice and screen look
   { const b = document.getElementById("tutBtn"); if (b) b.addEventListener("click", () => { b.blur(); if (mode === "title") startTutorial({ 1: true, 2: INPUT.active(2) }); }); }
   { const b = document.getElementById("musicBtn"); if (b) { b.addEventListener("click", e => { musicToggle(); b.blur(); }); musicLabel(); } }
 
@@ -325,7 +332,7 @@
       if (INPUT.kbHeld(1, "start")) { holdStart += dt; if (holdStart > 3 && holdStart - dt <= 3) setDev(!dev); } else holdStart = 0;
       for (const s of [1, 2]) {
         if (INPUT.pressed(s, "start") && !INPUT.kbHeld(s, "start")) musicToggle(); // phone PAUSE on the title: music on/off (laptop P stays for developer mode)
-        for (const k of ["up", "down", "left", "right"]) if (INPUT.pressed(s, k)) { const r = PROGRESS.cheatKey(k); if (r) cheatFlash(r === "again"); }
+        for (const k of ["up", "down", "left", "right"]) if (INPUT.pressed(s, k)) { const r = CHEATS.key(k); if (r) cheatFlash(r); }
         if (INPUT.pressed(s, "b")) return startTutorial({ 1: true, 2: INPUT.active(2) });
         if (INPUT.pressed(s, "z") || INPUT.pressed(s, "x")) {
           const human = { 1: true, 2: INPUT.active(2) };
@@ -346,13 +353,14 @@
       return;
     }
     if (mode === "tutorial") return tutorialStep(dt);
+    if (mode === "cheats") { if (CHEATS.step(dt)) toTitle(); return; }
     if (mode === "select") return selectStep(dt);
     if (mode === "versus") return versusStep(dt);
     if (mode === "walkout") return walkoutStep(dt);
     if (mode === "unlock") { UNLOCK.t += dt; if (UNLOCK.t > 1.6 && (INPUT.pressed(1, "z") || INPUT.pressed(2, "z"))) { const id = UNLOCK.id; UNLOCK.id = null; openSelect(Object.assign({}, pause.lastHuman, { 2: GAME.state.human[2] || INPUT.active(2) }), id); } return; }
     const G = GAME.state;
     if (pause.on) return pauseStep();
-    if (!demo && G.phase !== "over" && (INPUT.pressed(1, "start") || INPUT.pressed(2, "start"))) { pause.on = true; pause.sel = 0; pause.msg = ""; pause.armReset = false; pause.armNew = false; pause.armTut = false; PAUSE_ITEMS = pauseItems(); return; }
+    if (!demo && G.phase !== "over" && (INPUT.pressed(1, "start") || INPUT.pressed(2, "start"))) { pause.on = true; pause.sel = 0; pause.msg = ""; pause.armReset = false; pause.armNew = false; pause.armTut = false; pause.cheats = false; PAUSE_ITEMS = pauseItems(); return; }
     // Player 2 can take over from the computer mid-game only by connecting a phone.
     // A phone takes over a computer-run team only once someone presses a button on it (a phone that just
     // rejoins in a pocket shouldn't freeze the computer's team).
@@ -361,7 +369,7 @@
     for (const s of [1, 2]) {
       const on = !!(window.PADS && window.PADS.connected(s));
       if (!demo && G.human[s] && wasConn[s] && !on && G.phase !== "over") {
-        dropped[s] = true; pause.on = true; pause.sel = 0; pause.armReset = false; pause.armNew = false; pause.armTut = false; PAUSE_ITEMS = pauseItems();
+        dropped[s] = true; pause.on = true; pause.sel = 0; pause.armReset = false; pause.armNew = false; pause.armTut = false; pause.cheats = false; PAUSE_ITEMS = pauseItems();
         pause.msg = "P" + s + " PHONE DROPPED · REOPEN IT, OR RESUME: CPU PLAYS";
       }
       wasConn[s] = on;
@@ -396,12 +404,13 @@
     requestAnimationFrame(frame);
   }
   function paint(now) {
-    if (mode === "game") { RENDER.draw(GAME.state, now / 1000); if (pause.on) RENDER.pauseMenu(PAUSE_ITEMS, pause.sel, now / 1000, pause.msg); }
+    if (mode === "game") { RENDER.draw(GAME.state, now / 1000); if (pause.on && pause.cheats) CHEATS.draw(now / 1000); else if (pause.on) RENDER.pauseMenu(PAUSE_ITEMS, pause.sel, now / 1000, pause.msg); }
     else if (mode === "select") SCREENS.select(SEL, now / 1000);
     else if (mode === "versus") SCREENS.versus(VS.teams, VS.t);
     else if (mode === "walkout") SCREENS.walkout(VS.teams[WALK.i], WALK.i, WALK.t);
     else if (mode === "unlock") SCREENS.challenger(UNLOCK.id, UNLOCK.t);
     else if (mode === "offer") TUTORIAL.drawOffer(now / 1000, !!(TUT.human && TUT.human[2]));
+    else if (mode === "cheats") { const c = RENDER.ctx(); c.fillStyle = "#000"; c.fillRect(0, 0, RENDER.VW, RENDER.VH); CHEATS.draw(now / 1000); }
     else if (mode === "tutorial") { TUTORIAL.draw(now / 1000); if (TUT.pause) RENDER.pauseMenu(TUT_ITEMS, TUT.sel, now / 1000, "COACH KYLE'S TUTORIAL"); }
   }
   // For tests: run n frames by hand (the browser pauses animation when the window is hidden).
@@ -423,5 +432,5 @@
   document.addEventListener("visibilitychange", stayAwake);
   setInterval(stayAwake, 30000); // re-ask if the system dropped it (e.g. after the lid was closed)
 
-  window.DADMO = { tick, start, toTitle, pause, openSelect, SEL, VS, UNLOCK, TUT, startTutorial, endTutorial, get mode() { return mode; } };
+  window.DADMO = { tick, start, toTitle, pause, cheatFlash, openSelect, SEL, VS, UNLOCK, TUT, startTutorial, endTutorial, get mode() { return mode; } };
 })();

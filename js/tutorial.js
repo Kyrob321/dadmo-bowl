@@ -41,7 +41,7 @@ const TUTORIAL = (() => {
   function newHalf(s) {
     const g = makeGame(), o = other(s), boost = { 1: 0, 2: 0 };
     boost[o] = -15; // a soft computer team, so the drills work the first time
-    g.newGame({ [s]: true, [o]: false }, { 1: "bolts", 2: "krush", home: 1, weather: "clear", boost, powers: false });
+    g.newGame({ [s]: true, [o]: false }, { 1: "bolts", 2: "krush", home: 1, weather: "clear", boost, powers: false, tutorial: true }); // tutorial: power-up cheats stay out of the drills
     const H = { s, o, g, G: g.state, d: 0, msg: "", hint: "", await: null, later: null, hold: false, bonus: false, done: false, verdict: null, tries: 0, afterI: 0, card: null };
     setup(H, true);
     const name = s === 1 ? "DAD" : "P2";
@@ -55,7 +55,7 @@ const TUTORIAL = (() => {
     WEATHER.force("clear");
     halves = slots.map(newHalf);
   }
-  function stop() { halves = []; WEATHER.force(null); }
+  function stop() { halves = []; WEATHER.force(null); CHEATS.apply(); } // back to the weather the cheats menu picked
 
   // ---------- the drills ----------
   // setup(H, quiet): put the field in place. quiet = just lay it out (shown behind the intro).
