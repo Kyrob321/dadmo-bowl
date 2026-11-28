@@ -13,6 +13,16 @@ const RENDER = (() => {
     ctx = cv.getContext("2d"); ctx.imageSmoothingEnabled = false;
   }
 
+  // Text drawn straight onto the field gets a full dark outline, so it reads on light ice as well as grass.
+  function textO(s, x, y, color, size, align) {
+    ctx.font = (size || 8) + "px " + FONT; ctx.textAlign = align || "left"; ctx.textBaseline = "top";
+    ctx.fillStyle = "#000"; for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1], [1, 1]]) ctx.fillText(s, x + dx, y + dy);
+    ctx.fillStyle = color || "#f3efe4"; ctx.fillText(s, x, y);
+  }
+  // A team color that shows up: a near-black trim (Krakens, Vipers...) falls back to the jersey or cream.
+  const bright = h => { const v = parseInt(h.slice(1), 16); return 0.2126 * (v >> 16) + 0.7152 * ((v >> 8) & 255) + 0.0722 * (v & 255); };
+  const markColor = T => bright(T.trim) >= 70 ? T.trim : bright(T.color) >= 70 ? T.color : "#f3efe4";
+
   function text(s, x, y, color, size, align) {
     ctx.font = (size || 8) + "px " + FONT; ctx.textAlign = align || "left"; ctx.textBaseline = "top";
     ctx.fillStyle = "#000"; ctx.fillText(s, x + 1, y + 1);
@@ -97,7 +107,7 @@ const RENDER = (() => {
   const SKINS = {
     backyard:  { stripes: ["#5aa43c", "#4e9533"], line: "rgba(255,255,255,.62)", num: "rgba(255,255,255,.75)", tile: true },
     christmas: { stripes: ["#3c8a52", "#347c49"], line: "rgba(255,255,255,.85)", num: "rgba(255,255,255,.9)", tile: true },
-    chalk:     { stripes: ["#2e4c3c", "#2c4939"], line: "rgba(236,240,228,.6)", num: "rgba(236,240,228,.6)" },
+    chalk:     { stripes: ["#41694f", "#3d644b"], line: "rgba(236,240,228,.6)", num: "rgba(236,240,228,.6)" },
     pond:      { stripes: ["#d3e7f2", "#c9e0ee"], line: "rgba(52,112,196,.75)", num: "rgba(52,112,196,.85)" },
   };
 
@@ -257,7 +267,7 @@ const RENDER = (() => {
       for (let k = -300; k < 300; k += 16) { ctx.beginPath(); ctx.moveTo(x0 + k, top); ctx.lineTo(x0 + k + 200, bot); ctx.stroke(); }
       ezName(t, "#f6f1e7", x0, x1, left, "#1f6b3c");
     } else if (skin === "chalk") { // hatched in the team's color chalk
-      ctx.fillStyle = "#284334"; ctx.fillRect(x0, top, w, h);
+      ctx.fillStyle = "#375a44"; ctx.fillRect(x0, top, w, h);
       ctx.strokeStyle = t.color; ctx.globalAlpha = 0.4; ctx.lineWidth = 1;
       for (let k = -300; k < 300; k += 7) { ctx.beginPath(); ctx.moveTo(x0 + k, top); ctx.lineTo(x0 + k + 200, bot); ctx.stroke(); }
       ctx.globalAlpha = 1; ezName(t, "#ecf0e4", x0, x1, left);
@@ -338,7 +348,7 @@ const RENDER = (() => {
   function scrimmageLines(G) {
     if (G.phase !== "presnap" && G.phase !== "live" && G.phase !== "dead") return;
     if (G.play && G.play.type === "return") return;
-    const edge = fieldSkin() === "pond"; // light ice: give both lines dark edges so they don't read as yard lines
+    const edge = fieldSkin() !== "AUTO"; // swapped fields: dark edges so the lines never read as yard lines
     if (edge) { ctx.fillStyle = "rgba(0,0,0,.55)"; ctx.fillRect(sx(G.los) - 1, sy(0), 4, sy(FW) - sy(0)); const f = G.los + G.togo; if (f < 100) ctx.fillRect(sx(f) - 1, sy(0), 4, sy(FW) - sy(0)); }
     ctx.fillStyle = "#4aa3ff"; ctx.fillRect(sx(G.los), sy(0), 2, sy(FW) - sy(0));
     const fd = G.los + G.togo;
@@ -347,17 +357,19 @@ const RENDER = (() => {
 
   function arrow(pts, color, dashed) {
     if (pts.length < 2) return;
-    ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.setLineDash(dashed ? [4, 3] : []);
-    ctx.beginPath(); ctx.moveTo(sx(pts[0].x), sy(pts[0].y));
-    for (const p of pts.slice(1)) ctx.lineTo(sx(p.x), sy(p.y));
-    ctx.stroke(); ctx.setLineDash([]);
     const a = pts[pts.length - 2], b = pts[pts.length - 1];
     const ang = Math.atan2(sy(b.y) - sy(a.y), sx(b.x) - sx(a.x));
-    ctx.fillStyle = color; ctx.beginPath();
-    ctx.moveTo(sx(b.x) + Math.cos(ang) * 4, sy(b.y) + Math.sin(ang) * 4);
-    ctx.lineTo(sx(b.x) + Math.cos(ang + 2.5) * 5, sy(b.y) + Math.sin(ang + 2.5) * 5);
-    ctx.lineTo(sx(b.x) + Math.cos(ang - 2.5) * 5, sy(b.y) + Math.sin(ang - 2.5) * 5);
-    ctx.fill();
+    const line = () => { ctx.beginPath(); ctx.moveTo(sx(pts[0].x), sy(pts[0].y)); for (const p of pts.slice(1)) ctx.lineTo(sx(p.x), sy(p.y)); ctx.stroke(); };
+    const head = r => { ctx.beginPath();
+      ctx.moveTo(sx(b.x) + Math.cos(ang) * (4 + r), sy(b.y) + Math.sin(ang) * (4 + r));
+      ctx.lineTo(sx(b.x) + Math.cos(ang + 2.5) * (5 + r), sy(b.y) + Math.sin(ang + 2.5) * (5 + r));
+      ctx.lineTo(sx(b.x) + Math.cos(ang - 2.5) * (5 + r), sy(b.y) + Math.sin(ang - 2.5) * (5 + r)); ctx.fill(); };
+    // a dark edge under the line and head, so routes read on light ice and dark chalk alike
+    ctx.strokeStyle = ctx.fillStyle = "rgba(0,0,0,.5)"; ctx.lineWidth = 4; ctx.setLineDash(dashed ? [4, 3] : []);
+    line(); ctx.setLineDash([]); head(1.5);
+    ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.setLineDash(dashed ? [4, 3] : []);
+    line(); ctx.setLineDash([]);
+    ctx.fillStyle = color; head(0);
   }
 
   function playArt(G) {
@@ -454,7 +466,7 @@ const RENDER = (() => {
   function starIcon(x, y, time) {
     const pts = [[2, 0], [3, 0], [2, 1], [3, 1], [0, 2], [1, 2], [2, 2], [3, 2], [4, 2], [5, 2], [1, 3], [2, 3], [3, 3], [4, 3], [1, 4], [4, 4], [0, 5], [5, 5]];
     const glow = Math.floor(time * 3) % 2;
-    ctx.fillStyle = "#000"; for (const [a, b] of pts) ctx.fillRect(x - 3 + a, y + b + 1, 1, 1);
+    ctx.fillStyle = "#000"; for (const [a, b] of pts) ctx.fillRect(x - 4 + a, y + b - 1, 3, 3); // outline all round
     ctx.fillStyle = glow ? "#ffe14a" : "#ffb627"; for (const [a, b] of pts) ctx.fillRect(x - 3 + a, y + b, 1, 1);
   }
   // On fire: flickering pixel flames, some behind him and some in front.
@@ -480,10 +492,13 @@ const RENDER = (() => {
       if (e.kind === "spark") { // a quick white starburst up at hand height: the ball got hit
         if (k > 0.45) continue;
         ctx.fillStyle = "rgba(255,255,255," + (1 - k * 2) + ")";
-        for (let i = 0; i < 6; i++) { const a = i * 1.05, r = 3 + k * 16; ctx.fillRect(Math.round(x + Math.cos(a) * r), Math.round(y - 24 + Math.sin(a) * r * 0.7), 2, 2); }
+        const sp = []; for (let i = 0; i < 6; i++) { const a = i * 1.05, r = 3 + k * 16; sp.push([Math.round(x + Math.cos(a) * r), Math.round(y - 24 + Math.sin(a) * r * 0.7)]); }
+        const al = 1 - k * 2; ctx.fillStyle = "rgba(0,0,0," + (al * 0.6) + ")"; for (const [px, py] of sp) ctx.fillRect(px - 1, py - 1, 4, 4);
+        ctx.fillStyle = "rgba(255,255,255," + al + ")"; for (const [px, py] of sp) ctx.fillRect(px, py, 2, 2);
         continue;
       }
-      ctx.fillStyle = "rgba(214,196,150," + (0.85 * (1 - k)) + ")";
+      const dust = { pond: "70,110,150", chalk: "236,240,228", backyard: "138,106,60", christmas: "255,255,255" }[fieldSkin()] || "214,196,150"; // ice chips, chalk dust, dirt, snow
+      ctx.fillStyle = "rgba(" + dust + "," + (0.85 * (1 - k)) + ")";
       for (let i = 0; i < 6; i++) {
         const a = i * 1.05 + e.t0, r = 2 + k * 9;
         ctx.fillRect(Math.round(x + Math.cos(a) * r), Math.round(y - 2 - Math.abs(Math.sin(a)) * r * 0.6), 2, 2);
@@ -496,8 +511,9 @@ const RENDER = (() => {
     const x = sx(p.x), y = sy(p.y) - 34 - (Math.floor(time * 4) % 2);
     const T = CFG.TEAMS[team];
     ctx.fillStyle = "#000"; ctx.beginPath(); ctx.moveTo(x - 5, y - 1); ctx.lineTo(x + 5, y - 1); ctx.lineTo(x, y + 6); ctx.fill();
-    ctx.fillStyle = T.trim; ctx.beginPath(); ctx.moveTo(x - 4, y); ctx.lineTo(x + 4, y); ctx.lineTo(x, y + 5); ctx.fill();
-    text(String(team), x - 3, y - 10, T.trim, 8);
+    const mc = markColor(T);
+    ctx.fillStyle = mc; ctx.beginPath(); ctx.moveTo(x - 4, y); ctx.lineTo(x + 4, y); ctx.lineTo(x, y + 5); ctx.fill();
+    textO(String(team), x - 3, y - 10, mc, 8);
   }
 
   // BALL SHOP cheat: which football is in play ("AUTO" is the regular brown one).
@@ -558,9 +574,9 @@ const RENDER = (() => {
         const e = Math.round(tr[i].t * 60); // pinned to the point, so embers don't hop as old points drop off
         if (e % 3 === 0) { ctx.fillStyle = "#ffb627"; ctx.fillRect(x1 + (e * 7) % 5 - 2, y1 - 3 - Math.round(age * 6), 2, 2); } // embers rising
       } else if (k === "gold") {
-        ctx.globalAlpha = 0.85 * (1 - age); ctx.strokeStyle = age < 0.3 ? "#fff3a0" : "#ffd400"; ctx.lineWidth = Math.max(1, 3 * (1 - age));
+        ctx.globalAlpha = 0.85 * (1 - age); ctx.strokeStyle = ice ? (age < 0.3 ? "#e0a800" : "#b8860b") : age < 0.3 ? "#fff3a0" : "#ffd400"; ctx.lineWidth = Math.max(1, 3 * (1 - age));
         ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
-        if (i % 3 === 0) { ctx.globalAlpha = 1 - age; ctx.fillStyle = "#fff"; const ox = ((i * 13) % 7) - 3, oy = ((i * 7) % 7) - 3; ctx.fillRect(x1 + ox, y1 + oy - 2, 1, 5); ctx.fillRect(x1 + ox - 2, y1 + oy, 5, 1); }
+        if (i % 3 === 0) { ctx.globalAlpha = 1 - age; ctx.fillStyle = ice ? "#8a5a00" : "#fff"; const ox = ((i * 13) % 7) - 3, oy = ((i * 7) % 7) - 3; ctx.fillRect(x1 + ox, y1 + oy - 2, 1, 5); ctx.fillRect(x1 + ox - 2, y1 + oy, 5, 1); }
       } else if (k === "ornament") {
         ctx.globalAlpha = 0.5 * (1 - age); ctx.strokeStyle = ice ? "#d8342c" : "#fff"; ctx.lineWidth = 1;
         ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
@@ -604,8 +620,8 @@ const RENDER = (() => {
     const T = CFG.TEAMS;
     ctx.fillStyle = "#000"; ctx.fillRect(0, 0, VW, 22);
     // score sits right after each team name, however long the name is (8px per letter)
-    text(T[1].short, 8, 7, T[1].trim); text(String(G.score[1]), 8 + T[1].short.length * 8 + 10, 7, "#fff");
-    text(String(G.score[2]), VW - 8 - T[2].short.length * 8 - 10, 7, "#fff", 8, "right"); text(T[2].short, VW - 8, 7, T[2].trim, 8, "right");
+    text(T[1].short, 8, 7, markColor(T[1])); text(String(G.score[1]), 8 + T[1].short.length * 8 + 10, 7, "#fff");
+    text(String(G.score[2]), VW - 8 - T[2].short.length * 8 - 10, 7, "#fff", 8, "right"); text(T[2].short, VW - 8, 7, markColor(T[2]), 8, "right");
     ctx.fillStyle = T[1].color; ctx.fillRect(0, 20, VW / 2, 2); ctx.fillStyle = T[2].color; ctx.fillRect(VW / 2, 20, VW / 2, 2);
     const clock = G.ot ? "OT" : "Q" + G.quarter + " " + Math.floor(G.clock / 60) + ":" + String(Math.floor(G.clock % 60)).padStart(2, "0");
     text(clock, VW / 2, 2, "#ffb627", 8, "center");
@@ -636,7 +652,7 @@ const RENDER = (() => {
       const role = p.role === "CV" ? "" : " · " + (p.role === "DL" ? (p.key === "DL0" || p.key === "DL3" ? "DE" : "DT") : p.role);
       text((star ? "★ " : "") + p.name + role, x + (left ? 4 : -4), by + 2, star ? "#ffe14a" : "#f3efe4", 8, al);
       if (star) {
-        text(p.power, x + (left ? 4 : -4), by + 12, T.trim, 8, al);
+        text(p.power, x + (left ? 4 : -4), by + 12, markColor(T), 8, al);
         text(p.blurb, x + (left ? 4 : -4), by + 21, "#9fb1c5", 8, al);
       }
       if ((G.api || GAME).fireOn(p)) { ctx.fillStyle = "rgba(0,0,0,.62)"; ctx.fillRect(bx, by - 11, 64, 11); text("ON FIRE", bx + 4, by - 10, Math.floor(time * 8) % 2 ? "#ff7a1a" : "#ffe14a", 8); }
@@ -665,8 +681,8 @@ const RENDER = (() => {
     }
     const T = CFG.TEAMS;
     ctx.fillStyle = "rgba(0,0,0,.7)"; ctx.fillRect(0, VH - 14, VW, 14);
-    text("P1 " + lines[1], 6, VH - 11, T[1].trim, 8);
-    text(lines[2] + " P2", VW - 6, VH - 11, T[2].trim, 8, "right");
+    text("P1 " + lines[1], 6, VH - 11, markColor(T[1]), 8);
+    text(lines[2] + " P2", VW - 6, VH - 11, markColor(T[2]), 8, "right");
   }
 
   function kickMeter(G, at) {
@@ -706,8 +722,9 @@ const RENDER = (() => {
     ctx.fillStyle = "#5a1d1d"; ctx.fillRect(x0, y, bw, 5);
     ctx.fillStyle = "#7fd68f"; ctx.fillRect(px(ideal - w), y, Math.max(2, px(ideal + w) - px(ideal - w)), 5);
     ctx.fillStyle = "#fff"; ctx.fillRect(px(now) - 1, y - 2, 2, 9);
-    ctx.fillStyle = color; ctx.fillRect(x0 - 2, y + 7, bw + 4, 1);
-    if (label) text(label, x0 - 3, y - 1, color, 8, "right");
+    const lc = bright(color) >= 70 ? color : "#f3efe4";
+    ctx.fillStyle = lc; ctx.fillRect(x0 - 2, y + 7, bw + 4, 1);
+    if (label) textO(label, x0 - 3, y - 1, lc, 8, "right");
   }
 
   function timing(G) {
@@ -743,7 +760,7 @@ const RENDER = (() => {
     if (!G.pops) return;
     for (const p of G.pops) {
       const k = (G.time - p.t0) / 0.9; if (k < 0 || k > 1) continue;
-      text(p.text, sx(p.x), sy(p.y) - 40 - k * 14, p.color, 8, "center");
+      textO(p.text, sx(p.x), sy(p.y) - 40 - k * 14, p.color, 8, "center");
     }
   }
 
@@ -808,8 +825,9 @@ const RENDER = (() => {
     const pl = G.play, car = G.ball && G.ball.state === "held" ? G.ball.holder : null;
     if (pl && pl.type === "pass" && !pl.thrown && car && car.role === "QB" && G.human[G.poss] && G.receivers[G.target]) {
       const r = G.receivers[G.target];
+      ctx.strokeStyle = "#000"; ctx.lineWidth = 3; ctx.strokeRect(sx(r.x) - 8.5, sy(r.y) - 26.5, 17, 28); // dark frame: reads on ice and snow too
       ctx.strokeStyle = Math.floor(time * 6) % 2 ? "#ffe14a" : "#fff"; ctx.lineWidth = 1;
-      ctx.strokeRect(sx(r.x) - 8, sy(r.y) - 26, 16, 27);
+      ctx.strokeRect(sx(r.x) - 8.5, sy(r.y) - 26.5, 17, 28);
     }
     ball(G);
     for (const t of [1, 2]) if (G.human[t] && G.phase !== "kick" && G.phase !== "over" && G.phase !== "onside") marker(G, G.control[t], t, time);
@@ -817,7 +835,7 @@ const RENDER = (() => {
     weather(G, time);
     if (opts.tutorial) { kickMeter(G, opts.meter); mashMeter(G); bannerDraw(G); return; }
     hud(G); kickMeter(G); mashMeter(G); bannerDraw(G); blurbs(G, time); lowerThird(G, time); prompts(G);
-    if (G.fireMsg) { const k = G.fireMsg; text("HE'S ON FIRE!", VW / 2, 52, Math.floor(time * 8) % 2 ? "#ff7a1a" : "#ffe14a", 16, "center"); text(k.name, VW / 2, 72, CFG.TEAMS[k.team].trim, 8, "center"); }
+    if (G.fireMsg) { const k = G.fireMsg; textO("HE'S ON FIRE!", VW / 2, 52, Math.floor(time * 8) % 2 ? "#ff7a1a" : "#ffe14a", 16, "center"); textO(k.name, VW / 2, 72, markColor(CFG.TEAMS[k.team]), 8, "center"); }
     if (window.DADMO_DEV) { ctx.fillStyle = "#ffb627"; ctx.fillRect(VW - 34, VH - 26, 30, 10); text("DEV", VW - 31, VH - 25, "#000", 8); }
   }
 

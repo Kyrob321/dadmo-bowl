@@ -229,3 +229,14 @@ window.EXPECT_T10.onsideLand = [44, 56];
 // shimmer as the camera eases; checked the same pixels at 3 camera spots); pond 10s thinner and dark edges on the
 // scrimmage/first-down lines; regular ball lighter on the chalkboard; holiday goalposts and railing lights step
 // aside for the new fields; ornament trail red/green on ice; embers pinned to their point. No console errors.
+
+// ---------- T15: CONTRAST PASS (every field skin) ----------
+// Expected: everything drawn over the turf reads on all 5 fields (stadium, backyard, christmas, chalkboard, pond),
+// including retro, snow and night: receiver ring, route arrows, scrimmage/first-down lines, player markers and numbers,
+// stars, sparks, dust, pop text, timing-bar labels, team names on HUD bars. Kyle's report: receiver ring lost on ice.
+// RESULT: luminance check flagged yellow/white ring, white routes, orange RB path, gold star, sparks, pops, first-down
+// line, gold trail and dark team trims (Krakens/Vipers/Legends) as weak on ice, snow patches or chalk. Fixes: ring gets a
+// black 3px frame; arrows and scrimmage lines get dark underlays on skins; pops/markers/labels use outlined text; star
+// outlined; sparks backed; dust tinted per field; dark trims fall back to the team color or off-white (markColor);
+// chalkboard lightened a touch. Rechecked frames on every field x (normal, retro, snow, night), dark teams on chalk and
+// white teams on ice (sprite outlines carry them). No console errors.
