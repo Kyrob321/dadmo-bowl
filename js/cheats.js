@@ -9,6 +9,12 @@ const CHEATS = (() => {
     { id: "lawnchairs", name: "THE LAWN CHAIRS", kind: "team", code: [L, R, R, U, U, D, D, D, D, D], what: "A SECRET TEAM" },
     { id: "weather", name: "WEATHER MACHINE", kind: "pick", code: [D, D, D, U, U, U, L, R], what: "PICK THE WEATHER",
       choices: ["AUTO", "snow", "rain", "wind", "fog", "night", "sunset", "neon", "crt", "clear"], start: "snow" },
+    { id: "ball", name: "BALL SHOP", kind: "pick", code: [U, R, D, L, U, R, D, L], what: "PICK A NEW FOOTBALL",
+      choices: ["AUTO", "fire", "gold", "ornament"], start: "fire",
+      labels: { AUTO: "REGULAR", fire: "FLAMING", gold: "GOLDEN", ornament: "ORNAMENT" } },
+    { id: "field", name: "FIELD SWAP", kind: "pick", code: [L, R, L, R, D, U, D, U], what: "PLAY ON A DIFFERENT FIELD",
+      choices: ["AUTO", "backyard", "christmas", "chalk", "pond"], start: "backyard",
+      labels: { AUTO: "STADIUM GRASS", backyard: "BACKYARD", christmas: "CHRISTMAS", chalk: "CHALKBOARD", pond: "FROZEN POND" } },
     { id: "bighead", name: "BIG HEADS", kind: "toggle", code: [U, U, L, L, R, R, U, U], what: "EVERYONE'S HELMET IS HUGE" },
     { id: "giants", name: "GIANT SUPERSTARS", kind: "toggle", code: [U, D, U, D, U, U, U, U], what: "STARS PLAY TWICE AS TALL" },
     { id: "retro", name: "RETRO GREEN", kind: "toggle", code: [L, L, L, L, R, R, R, R], what: "AN OLD GREEN HANDHELD SCREEN" },
@@ -98,7 +104,7 @@ const CHEATS = (() => {
   }
   const label = c => {
     if (c.kind === "team") return "ON THE TEAM LIST";
-    if (c.kind === "pick") { const v = value(c.id); return v === "AUTO" ? "AUTO (HOME STADIUM)" : WEATHER.KINDS[v].label; }
+    if (c.kind === "pick") { const v = value(c.id); return c.labels ? c.labels[v] : v === "AUTO" ? "AUTO (HOME STADIUM)" : WEATHER.KINDS[v].label; }
     return value(c.id) ? "ON" : "OFF";
   };
   function lock(c2, x, y, col) { // a chunky padlock, 14 x 16
@@ -113,12 +119,12 @@ const CHEATS = (() => {
     c2.fillStyle = "#c8223a"; c2.fillRect(0, 0, VW, 3); c2.fillStyle = "#ffb627"; c2.fillRect(0, 3, VW, 2);
     RENDER.text("CHEATS", VW / 2, 12, "#ffe14a", 16, "center");
     RENDER.text(count() + "/" + LIST.length + " FOUND", VW - 14, 16, "#9fb1c5", 8, "right");
-    const top = 44, rowH = 21;
+    const top = 38, rowH = 18;
     LIST.forEach((c, i) => {
       const y = top + i * rowH, sel = i === M.sel, open = unlocked(c.id);
-      if (sel) { c2.fillStyle = "rgba(255,225,74,.14)"; c2.fillRect(24, y - 5, VW - 48, rowH - 2); }
+      if (sel) { c2.fillStyle = "rgba(255,225,74,.14)"; c2.fillRect(24, y - 4, VW - 48, rowH - 1); }
       if (sel) RENDER.text(Math.floor(time * 3) % 2 ? "▶" : " ", 30, y, "#ffe14a", 8);
-      if (!open) { lock(c2, 50, y - 5, sel ? "#ffe14a" : "#55627a"); return; }
+      if (!open) { lock(c2, 50, y - 4, sel ? "#ffe14a" : "#55627a"); return; }
       RENDER.text(c.name, 50, y, sel ? "#ffe14a" : "#f3efe4", 8);
       const v = label(c), lit = c.kind === "team" || (c.kind === "pick" ? value(c.id) !== "AUTO" : value(c.id));
       RENDER.text(v, VW - 34, y, lit ? "#7fd68f" : "#9fb1c5", 8, "right");

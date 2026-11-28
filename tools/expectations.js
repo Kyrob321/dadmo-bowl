@@ -219,3 +219,13 @@ window.EXPECT_T10.onsideLand = [44, 56];
 // RESET / RESTORE re-apply cheats right away (retro screen, forced weather); picking a weather turns weather on only
 // when the pick changes, so the pause menu's WEATHER: OFF sticks; versus screen shows the Weather Machine's pick.
 // Re-checked: weather OFF survives apply(), tutorial runs clear with fire/speed off and gets rain back after.
+
+// ---------- T14: BALL SHOP + FIELD SWAP ----------
+// Expected: two more pick cheats, locked on a fresh save; codes don't overlap any other code; Z cycles every choice
+// and back to REGULAR / STADIUM GRASS; looks only (no gameplay change); fancy balls trail on passes, kicks, fumbles.
+// RESULT: both codes unlock from a blank non-dev save by D-pad (others stay locked, 2/11 found); ball cycles
+// fire > gold > ornament > AUTO, field cycles backyard > christmas > chalk > pond > AUTO. Screenshots of each field
+// mid-kick and at the end zone. Review fixes (virtual Kyle): chalk lines and snowbank tops pinned to the field (no
+// shimmer as the camera eases; checked the same pixels at 3 camera spots); pond 10s thinner and dark edges on the
+// scrimmage/first-down lines; regular ball lighter on the chalkboard; holiday goalposts and railing lights step
+// aside for the new fields; ornament trail red/green on ice; embers pinned to their point. No console errors.

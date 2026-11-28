@@ -63,7 +63,7 @@ const RENDER = (() => {
     const off = ((camX * PX * 0.5) % 128 + 128) % 128;
     for (let x = -off; x < VW; x += 512) ctx.drawImage(img, Math.round(x), 22);
     ctx.fillStyle = "#0b1422"; ctx.fillRect(0, 40, VW, 2);
-    if (typeof HOLIDAY !== "undefined" && HOLIDAY.on) { // a string of Christmas lights on the railing, chasing slowly
+    if (typeof HOLIDAY !== "undefined" && HOLIDAY.on && fieldSkin() === "AUTO") { // a string of Christmas lights on the railing, chasing slowly (the other fields dress the railing themselves)
       const cols = ["#ff3b3b", "#3bd16f", "#ffd23b", "#4aa8ff"], step = Math.floor(time * 3);
       ctx.fillStyle = "#1c3a22"; ctx.fillRect(0, 37, VW, 1);
       const o = camX * PX * 0.5; // unwrapped scroll, so the string never jumps
@@ -81,7 +81,7 @@ const RENDER = (() => {
       if (x < -20 || x > VW + 20) continue;
       ctx.fillStyle = "#c9a200"; ctx.fillRect(x - 1, base - 20, 3, 20);
       ctx.fillStyle = "#ffd400"; ctx.fillRect(x - 9, base - 22, 19, 2); ctx.fillRect(x - 9, base - 44, 2, 22); ctx.fillRect(x + 8, base - 44, 2, 22);
-      if (typeof HOLIDAY !== "undefined" && HOLIDAY.on) { // candy-cane stripes, with a bow on the crossbar
+      if (typeof HOLIDAY !== "undefined" && HOLIDAY.on && fieldSkin() !== "christmas") { // candy-cane stripes, with a bow on the crossbar (plain gold on the candy-cane end zones)
         ctx.fillStyle = "#f3efe4"; ctx.fillRect(x - 1, base - 20, 3, 20); ctx.fillRect(x - 9, base - 22, 19, 2); ctx.fillRect(x - 9, base - 44, 2, 22); ctx.fillRect(x + 8, base - 44, 2, 22);
         ctx.fillStyle = "#d8342c";
         for (let y = base - 44; y < base; y += 4) { if (y < base - 22) { ctx.fillRect(x - 9, y, 2, 2); ctx.fillRect(x + 8, y, 2, 2); } else if (y > base - 21) ctx.fillRect(x - 1, y, 3, 2); }
@@ -91,60 +91,255 @@ const RENDER = (() => {
     }
   }
 
+  // FIELD SWAP cheat: which field the game is played on ("AUTO" is the regular stadium grass).
+  const fieldSkin = () => (typeof CHEATS !== "undefined" ? CHEATS.value("field") : "AUTO");
+  const hsh = (a, b) => { const v = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return v - Math.floor(v); };
+  const SKINS = {
+    backyard:  { stripes: ["#5aa43c", "#4e9533"], line: "rgba(255,255,255,.62)", num: "rgba(255,255,255,.75)", tile: true },
+    christmas: { stripes: ["#3c8a52", "#347c49"], line: "rgba(255,255,255,.85)", num: "rgba(255,255,255,.9)", tile: true },
+    chalk:     { stripes: ["#2e4c3c", "#2c4939"], line: "rgba(236,240,228,.6)", num: "rgba(236,240,228,.6)" },
+    pond:      { stripes: ["#d3e7f2", "#c9e0ee"], line: "rgba(52,112,196,.75)", num: "rgba(52,112,196,.85)" },
+  };
+
   function field(G, time) {
     ctx.fillStyle = "#0b1422"; ctx.fillRect(0, 0, VW, VH);
     stands(G, time);
+    const skin = fieldSkin(), S = SKINS[skin];
     const T = CFG.TEAMS, own = G.poss, opp = own === 1 ? 2 : 1;
+    const top = sy(0), bot = sy(FW);
+    if (S) standsDecor(skin, time);
     // grass stripes every 5 yards, then a speckle texture that scrolls with the camera
     for (let yd = -15; yd < 115; yd += 5) {
       const x0 = sx(yd), x1 = sx(yd + 5);
       if (x1 < 0 || x0 > VW) continue;
-      ctx.fillStyle = (Math.floor(yd / 5) % 2 === 0) ? "#2e8d48" : "#287f40";
-      ctx.fillRect(x0, sy(0) - 3, x1 - x0, sy(FW) - sy(0) + 6);
+      ctx.fillStyle = S ? S.stripes[Math.abs(Math.floor(yd / 5)) % 2] : (Math.floor(yd / 5) % 2 === 0) ? "#2e8d48" : "#287f40";
+      ctx.fillRect(x0, top - 3, x1 - x0, bot - top + 6);
     }
-    ctx.save(); ctx.translate(-Math.round(camX * PX) % 32, 0); ctx.fillStyle = grassTile;
-    ctx.fillRect(-32, sy(0) - 3, VW + 64, sy(FW) - sy(0) + 6); ctx.restore();
+    if (!S || S.tile) { ctx.save(); ctx.translate(-Math.round(camX * PX) % 32, 0); ctx.fillStyle = grassTile;
+      ctx.fillRect(-32, top - 3, VW + 64, bot - top + 6); ctx.restore(); }
+    if (S) turf(skin, time);
     // end zones: left is defended by the offense, right by the defense
     for (const [a, team] of [[-10, own], [100, opp]]) {
       const x0 = sx(a), x1 = sx(a + 10);
       if (x1 < 0 || x0 > VW) continue;
-      ctx.fillStyle = T[team].dark; ctx.fillRect(x0, sy(0), x1 - x0, sy(FW) - sy(0));
-      ctx.save(); ctx.beginPath(); ctx.rect(x0, sy(0), x1 - x0, sy(FW) - sy(0)); ctx.clip();
+      if (S) { endZone(skin, x0, x1, T[team], a < 0, time); continue; }
+      ctx.fillStyle = T[team].dark; ctx.fillRect(x0, top, x1 - x0, bot - top);
+      ctx.save(); ctx.beginPath(); ctx.rect(x0, top, x1 - x0, bot - top); ctx.clip();
       ctx.strokeStyle = T[team].color; ctx.lineWidth = 3;
-      for (let k = -300; k < 300; k += 14) { ctx.beginPath(); ctx.moveTo(x0 + k, sy(0)); ctx.lineTo(x0 + k + 200, sy(FW)); ctx.stroke(); }
+      for (let k = -300; k < 300; k += 14) { ctx.beginPath(); ctx.moveTo(x0 + k, top); ctx.lineTo(x0 + k + 200, bot); ctx.stroke(); }
       ctx.restore();
-      ctx.save(); ctx.translate((x0 + x1) / 2, (sy(0) + sy(FW)) / 2); ctx.rotate(a < 0 ? -Math.PI / 2 : Math.PI / 2);
-      ctx.font = "16px " + FONT; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillStyle = "#000"; ctx.fillText(T[team].short, 2, 2);
-      ctx.fillStyle = T[team].trim; ctx.fillText(T[team].short, 0, 0); ctx.restore();
+      ezName(T[team], T[team].trim, x0, x1, a < 0);
     }
     // midfield logo
     const mx = sx(50);
     if (mx > -60 && mx < VW + 60) {
-      const home = CFG.TEAMS[G.home || 1];
-      ctx.save(); ctx.globalAlpha = 0.55; ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(MASCOTS.icon(home.id), mx - 24, sy(FW / 2) - 30, 48, 48);
+      const home = CFG.TEAMS[G.home || 1], my = sy(FW / 2);
+      if (S) midDecor(skin, mx, my, time);
+      ctx.save(); ctx.globalAlpha = skin === "chalk" ? 0.3 : 0.55; ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(MASCOTS.icon(home.id), mx - 24, my - 30, 48, 48);
       ctx.restore();
       ctx.font = "8px " + FONT; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillStyle = "rgba(255,255,255,.35)"; ctx.fillText(home.short, mx, sy(FW / 2) + 26);
+      ctx.fillStyle = skin === "pond" ? "rgba(52,112,196,.6)" : "rgba(255,255,255,.35)"; ctx.fillText(home.short, mx, my + 26);
     }
     // lines
-    ctx.fillStyle = "rgba(255,255,255,.75)";
-    for (let yd = 0; yd <= 100; yd += 5) { const x = sx(yd); if (x >= -2 && x <= VW + 2) ctx.fillRect(x, sy(0), yd % 50 === 0 || yd % 100 === 0 ? 2 : 1, sy(FW) - sy(0)); }
+    const rough = skin === "chalk";
+    const vline = (x, w, y0, y1, yd) => {
+      if (!rough) { ctx.fillRect(x, y0, w, y1 - y0); return; }
+      for (let y = y0; y < y1; y += 7) { const r = y - y0, g = hsh(yd, r) * 3; ctx.fillRect(x + (hsh(r, yd) < 0.2 ? 1 : 0), y, w, 7 - Math.round(g)); } // chalk skips (pinned to the yard line, so they hold still)
+    };
+    for (let yd = 0; yd <= 100; yd += 5) {
+      const x = sx(yd); if (x < -2 || x > VW + 2) continue;
+      ctx.fillStyle = skin === "pond" && yd === 50 ? "rgba(214,40,40,.8)" : S ? S.line : "rgba(255,255,255,.75)";
+      vline(x, yd % 50 === 0 ? 2 : 1, top, bot, yd);
+    }
+    ctx.fillStyle = S ? S.line : "rgba(255,255,255,.75)";
     for (let yd = 1; yd < 100; yd++) { if (yd % 5 === 0) continue; const x = sx(yd); if (x < 0 || x > VW) continue; ctx.fillRect(x, sy(FW * 0.37), 1, 2); ctx.fillRect(x, sy(FW * 0.63), 1, 2); }
-    ctx.fillStyle = "#fff"; ctx.fillRect(sx(-10), sy(0) - 1, sx(110) - sx(-10), 2); ctx.fillRect(sx(-10), sy(FW), sx(110) - sx(-10), 2);
+    sidelines(skin, top, bot, time);
     // yard numbers
     for (let yd = 10; yd <= 90; yd += 10) {
       const x = sx(yd); if (x < -20 || x > VW + 20) continue;
       const n = String(yd <= 50 ? yd : 100 - yd);
-      ctx.font = "8px " + FONT; ctx.textAlign = "center"; ctx.textBaseline = "top"; ctx.fillStyle = "rgba(255,255,255,.8)";
+      ctx.font = "8px " + FONT; ctx.textAlign = "center"; ctx.textBaseline = "top"; ctx.fillStyle = S ? S.num : "rgba(255,255,255,.8)";
       ctx.fillText(n, x + 1, sy(3)); ctx.fillText(n, x + 1, sy(FW - 5));
+    }
+  }
+
+  // A team's name down the middle of its end zone.
+  function ezName(t, col, x0, x1, left, band) {
+    ctx.save(); ctx.translate((x0 + x1) / 2, (sy(0) + sy(FW)) / 2); ctx.rotate(left ? -Math.PI / 2 : Math.PI / 2);
+    if (band) { ctx.fillStyle = band; ctx.fillRect(-70, -12, 140, 24); }
+    ctx.font = "16px " + FONT; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillStyle = "#000"; ctx.fillText(t.short, 2, 2);
+    ctx.fillStyle = col; ctx.fillText(t.short, 0, 0); ctx.restore();
+  }
+
+  // The yard range on screen, for decorations pinned to the field.
+  const onScreen = () => [Math.floor(camX - VW / 2 / PX) - 12, Math.ceil(camX + VW / 2 / PX) + 2];
+
+  function turf(skin, time) {
+    const [a, b] = onScreen(), top = sy(0), H = sy(FW) - top;
+    for (let yd = Math.max(a, -10); yd <= Math.min(b, 110); yd++) {
+      const x = sx(yd);
+      if (skin === "backyard") {
+        if (hsh(yd, 1) < 0.16) { // a bare patch of dirt
+          const y = top + 6 + hsh(yd, 2) * (H - 20), w = 10 + Math.round(hsh(yd, 3) * 12), h = 5 + Math.round(hsh(yd, 4) * 4);
+          ctx.fillStyle = "#8a6a3c"; ctx.fillRect(x + 2, y + 1, w, h - 2); ctx.fillRect(x + 4, y, w - 4, h);
+          ctx.fillStyle = "#a3824c"; ctx.fillRect(x + 5, y + 1, 3, 1);
+        }
+        for (let i = 0; i < 3; i++) if (hsh(yd, 10 + i) < 0.55) { // dandelions
+          const dx = x + Math.round(hsh(yd, 20 + i) * 11), dy = top + 3 + Math.round(hsh(yd, 30 + i) * (H - 6));
+          ctx.fillStyle = "#ffe14a"; ctx.fillRect(dx, dy, 2, 2); ctx.fillStyle = "#fff8c0"; ctx.fillRect(dx, dy, 1, 1);
+        }
+        if (hsh(yd, 5) < 0.35) { ctx.fillStyle = "#3f7f2a"; const cy = top + Math.round(hsh(yd, 6) * H); ctx.fillRect(x + 3, cy, 4, 3); ctx.fillRect(x + 4, cy - 1, 2, 5); } // clover
+      } else if (skin === "christmas") {
+        if (hsh(yd, 1) < 0.3) { // snow patches
+          const y = top + 8 + hsh(yd, 2) * (H - 24), w = 12 + Math.round(hsh(yd, 3) * 16);
+          const j = Math.round(hsh(yd, 11) * 6);
+          ctx.fillStyle = "rgba(240,246,255,.6)"; ctx.fillRect(x, y + 2, w, 3); ctx.fillRect(x + 3 + j, y, w - 8 - j, 7); ctx.fillRect(x + 1 - j, y + 3, w - 4, 3);
+          ctx.fillStyle = "rgba(255,255,255,.75)"; ctx.fillRect(x + 5 + j, y + 1, Math.max(2, w - 14 - j), 2);
+        }
+        if (hsh(yd, 7) < 0.12) { // a little wrapped present on the grass
+          const px = x + 3, py = top + 6 + Math.round(hsh(yd, 8) * (H - 14)), c = ["#d8342c", "#2f6fd8", "#ffd23b"][Math.floor(hsh(yd, 9) * 3)];
+          ctx.fillStyle = c; ctx.fillRect(px, py, 6, 5); ctx.fillStyle = "#fff"; ctx.fillRect(px + 2, py, 2, 5); ctx.fillRect(px, py + 2, 6, 1);
+          ctx.fillRect(px + 1, py - 1, 1, 1); ctx.fillRect(px + 4, py - 1, 1, 1);
+        }
+      } else if (skin === "chalk") {
+        if (hsh(yd, 1) < 0.2) { // eraser smudges
+          const y = top + hsh(yd, 2) * H - 10, w = 30 + hsh(yd, 3) * 30; ctx.fillStyle = "rgba(230,236,226,.035)";
+          ctx.fillRect(x, y + 3, w, 12); ctx.fillRect(x + 5, y, w - 12, 18); ctx.fillRect(x + 10, y + 6, w - 4, 8);
+        }
+        if (yd % 4 === 0 && yd >= 0 && yd < 100 && hsh(yd, 4) < 0.8) { // X's and O's from an old play
+          const y = top + 14 + Math.round(hsh(yd, 5) * (H - 30)), o = hsh(yd, 6) < 0.5;
+          ctx.strokeStyle = "rgba(236,240,228,.32)"; ctx.lineWidth = 1;
+          if (o) { ctx.beginPath(); ctx.arc(x + 4.5, y + 4.5, 4, 0, Math.PI * 2); ctx.stroke(); }
+          else { ctx.beginPath(); ctx.moveTo(x + 1, y + 1); ctx.lineTo(x + 8, y + 8); ctx.moveTo(x + 8, y + 1); ctx.lineTo(x + 1, y + 8); ctx.stroke(); }
+          if (o && hsh(yd, 7) < 0.6) { // and his route
+            const up = hsh(yd, 8) < 0.5 ? -1 : 1;
+            ctx.setLineDash([3, 2]); ctx.beginPath(); ctx.moveTo(x + 9, y + 4); ctx.quadraticCurveTo(x + 30, y + 4, x + 36, y + 4 + up * 18); ctx.stroke(); ctx.setLineDash([]);
+            ctx.beginPath(); ctx.moveTo(x + 36, y + 4 + up * 18); ctx.lineTo(x + 32, y + up * 14); ctx.moveTo(x + 36, y + 4 + up * 18); ctx.lineTo(x + 38, y + up * 13); ctx.stroke();
+          }
+        }
+      } else if (skin === "pond") {
+        if (hsh(yd, 1) < 0.4) { // skate marks
+          const y = top + 6 + hsh(yd, 2) * (H - 12), r = 30 + hsh(yd, 3) * 60, a0 = hsh(yd, 4) * 6;
+          ctx.strokeStyle = "rgba(255,255,255,.75)"; ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.arc(x, y + r, r, a0, a0 + 0.5 + hsh(yd, 5) * 0.6); ctx.stroke();
+          ctx.strokeStyle = "rgba(120,160,195,.35)"; ctx.beginPath(); ctx.arc(x + 2, y + r + 2, r, a0, a0 + 0.4); ctx.stroke();
+        }
+        if (hsh(yd, 6) < 0.08) { // a crack
+          let cx = x, cy = top + hsh(yd, 7) * H; ctx.strokeStyle = "rgba(90,135,175,.45)"; ctx.beginPath(); ctx.moveTo(cx, cy);
+          for (let i = 0; i < 5; i++) { cx += 4 + hsh(yd, 8 + i) * 6; cy += (hsh(yd, 14 + i) - 0.5) * 10; ctx.lineTo(cx, cy); }
+          ctx.stroke();
+        }
+      }
+    }
+    if (skin === "pond") { // glare
+      ctx.fillStyle = "rgba(255,255,255,.16)";
+      const o = ((camX * PX * 0.3) % 220 + 220) % 220;
+      for (let gx = -o - 60; gx < VW + 60; gx += 220) { ctx.beginPath(); ctx.moveTo(gx, top); ctx.lineTo(gx + 26, top); ctx.lineTo(gx + 86, sy(FW)); ctx.lineTo(gx + 60, sy(FW)); ctx.fill(); }
+    }
+  }
+
+  function endZone(skin, x0, x1, t, left, time) {
+    const top = sy(0), bot = sy(FW), w = x1 - x0, h = bot - top;
+    ctx.save(); ctx.beginPath(); ctx.rect(x0, top, w, h); ctx.clip();
+    if (skin === "backyard") { // a kiddie pool, rim in team colors
+      ctx.fillStyle = "#4e9533"; ctx.fillRect(x0, top, w, h);
+      ctx.fillStyle = t.color; ctx.fillRect(x0 + 4, top + 4, w - 8, h - 8);
+      ctx.fillStyle = t.trim; for (let y = top + 4; y < bot - 4; y += 12) { ctx.fillRect(x0 + 4, y, 4, 6); ctx.fillRect(x1 - 8, y + 6, 4, 6); }
+      ctx.fillStyle = "#5cc0ec"; ctx.fillRect(x0 + 9, top + 9, w - 18, h - 18);
+      ctx.fillStyle = "rgba(255,255,255,.45)";
+      for (let i = 0; i < 9; i++) { const ry = top + 14 + ((i * 29 + Math.floor(time * 12)) % (h - 28)); ctx.fillRect(x0 + 14 + (i * 17) % (w - 40), ry, 10, 1); }
+      ezName(t, "#fff", x0, x1, left);
+    } else if (skin === "christmas") { // candy cane stripes and a ribbon with the name
+      ctx.fillStyle = "#f6f1e7"; ctx.fillRect(x0, top, w, h);
+      ctx.strokeStyle = "#d8342c"; ctx.lineWidth = 6;
+      for (let k = -300; k < 300; k += 16) { ctx.beginPath(); ctx.moveTo(x0 + k, top); ctx.lineTo(x0 + k + 200, bot); ctx.stroke(); }
+      ezName(t, "#f6f1e7", x0, x1, left, "#1f6b3c");
+    } else if (skin === "chalk") { // hatched in the team's color chalk
+      ctx.fillStyle = "#284334"; ctx.fillRect(x0, top, w, h);
+      ctx.strokeStyle = t.color; ctx.globalAlpha = 0.4; ctx.lineWidth = 1;
+      for (let k = -300; k < 300; k += 7) { ctx.beginPath(); ctx.moveTo(x0 + k, top); ctx.lineTo(x0 + k + 200, bot); ctx.stroke(); }
+      ctx.globalAlpha = 1; ezName(t, "#ecf0e4", x0, x1, left);
+    } else if (skin === "pond") { // team color frozen under the ice
+      ctx.fillStyle = t.dark; ctx.globalAlpha = 0.6; ctx.fillRect(x0, top, w, h); ctx.globalAlpha = 1;
+      ctx.fillStyle = "rgba(210,232,245,.35)"; for (let k = 0; k < h; k += 10) ctx.fillRect(x0, top + k, w, 4);
+      ezName(t, t.trim, x0, x1, left);
+    }
+    ctx.restore();
+  }
+
+  function midDecor(skin, mx, my, time) {
+    if (skin === "christmas") { // a wreath
+      for (let i = 0; i < 28; i++) {
+        const a = (i / 28) * Math.PI * 2, x = Math.round(mx + Math.cos(a) * 30), y = Math.round(my - 6 + Math.sin(a) * 30);
+        ctx.fillStyle = i % 2 ? "#1f6b3c" : "#2f8a4c"; ctx.fillRect(x - 3, y - 3, 7, 7);
+        if (i % 4 === 1) { ctx.fillStyle = "#d8342c"; ctx.fillRect(x, y, 2, 2); }
+      }
+      ctx.fillStyle = "#d8342c"; ctx.fillRect(mx - 7, my + 22, 6, 5); ctx.fillRect(mx + 2, my + 22, 6, 5); ctx.fillRect(mx - 1, my + 23, 3, 3);
+    } else if (skin === "chalk") { ctx.strokeStyle = "rgba(236,240,228,.35)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(mx, my - 6, 32, 0.2, Math.PI * 2 - 0.1); ctx.stroke(); }
+    else if (skin === "pond") { ctx.strokeStyle = "rgba(214,40,40,.7)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(mx, my - 6, 32, 0, Math.PI * 2); ctx.stroke(); }
+  }
+
+  // The two sidelines.
+  function sidelines(skin, top, bot, time) {
+    const x0 = sx(-10), x1 = sx(110);
+    if (skin === "backyard") { // a garden hose along each side
+      for (const y of [top - 1, bot]) {
+        ctx.fillStyle = "#1f7a33"; ctx.fillRect(x0, y, x1 - x0, 2);
+        ctx.fillStyle = "#3fae55"; for (let x = x0 + ((y * 3) % 9); x < x1; x += 9) ctx.fillRect(x, y, 3, 1);
+      }
+      const nx = sx(-10) + 2; ctx.fillStyle = "#e0a41c"; ctx.fillRect(nx, top - 3, 5, 5); ctx.fillStyle = "#4a4a4a"; ctx.fillRect(nx + 5, top - 2, 3, 3);
+      return;
+    }
+    if (skin === "christmas") { // candy cane
+      for (const y of [top - 1, bot]) { ctx.fillStyle = "#fff"; ctx.fillRect(x0, y, x1 - x0, 2); ctx.fillStyle = "#d8342c"; for (let x = x0; x < x1; x += 8) ctx.fillRect(x, y, 4, 2); }
+      return;
+    }
+    if (skin === "pond") { // snowbanks
+      for (const [y, dir] of [[top, -1], [bot, 1]]) {
+        ctx.fillStyle = "#f4f8fc"; ctx.fillRect(x0, dir < 0 ? y - 3 : y, x1 - x0, 3);
+        if (dir > 0) ctx.fillRect(x0, y, x1 - x0, VH - y); // the near bank runs off the bottom of the screen
+        for (let x = x0; x < x1; x += 7) { const hh = 1 + Math.round(hsh(Math.round((x - x0) / 7), y) * 3); ctx.fillRect(x, dir < 0 ? y - 3 - hh : y - hh, 7, hh); }
+        ctx.fillStyle = "rgba(150,180,210,.5)"; ctx.fillRect(x0, dir < 0 ? y - 1 : y, x1 - x0, 1);
+      }
+      return;
+    }
+    ctx.fillStyle = skin === "chalk" ? "rgba(236,240,228,.75)" : "#fff"; ctx.fillRect(x0, top - 1, x1 - x0, 2); ctx.fillRect(x0, bot, x1 - x0, 2);
+  }
+
+  // Over the crowd, by field.
+  function standsDecor(skin, time) {
+    if (skin === "backyard") { // a white picket fence
+      const o = ((camX * PX * 0.5) % 8 + 8) % 8;
+      ctx.fillStyle = "#e9e4d6"; ctx.fillRect(0, 33, VW, 2); ctx.fillRect(0, 38, VW, 2);
+      for (let x = -o; x < VW; x += 8) { ctx.fillRect(Math.round(x), 29, 4, 13); ctx.fillRect(Math.round(x) + 1, 28, 2, 1); }
+      ctx.fillStyle = "rgba(0,0,0,.25)"; for (let x = -o; x < VW; x += 8) ctx.fillRect(Math.round(x) + 3, 30, 1, 12);
+    } else if (skin === "christmas") { // garland and lights, even outside the holidays
+      ctx.fillStyle = "#1f6b3c"; ctx.fillRect(0, 36, VW, 3); ctx.fillStyle = "#2f8a4c"; for (let x = 0; x < VW; x += 6) ctx.fillRect(x, 35 + (x % 12 ? 0 : 1), 3, 2);
+      const cols = ["#ff3b3b", "#3bd16f", "#ffd23b", "#4aa8ff"], step = Math.floor(time * 3), o = camX * PX * 0.5;
+      for (let x = -(((o % 10) + 10) % 10); x < VW; x += 10) { const k = Math.round((x + o) / 10); ctx.fillStyle = (k + step) % 4 === 0 ? "#fff6c8" : cols[((k % 4) + 4) % 4]; ctx.fillRect(Math.round(x), 38, 2, 2); }
+    } else if (skin === "chalk") { // the chalk tray along the bottom of the board
+      ctx.fillStyle = "#7a5230"; ctx.fillRect(0, 36, VW, 6); ctx.fillStyle = "#94653c"; ctx.fillRect(0, 36, VW, 1);
+      const o = ((camX * PX * 0.5) % 160 + 160) % 160;
+      for (let x = -o; x < VW; x += 160) { ctx.fillStyle = "#f3efe4"; ctx.fillRect(Math.round(x) + 20, 37, 9, 2); ctx.fillStyle = "#ffe14a"; ctx.fillRect(Math.round(x) + 60, 37, 7, 2);
+        ctx.fillStyle = "#3d3a52"; ctx.fillRect(Math.round(x) + 100, 35, 16, 4); ctx.fillStyle = "#b9a37a"; ctx.fillRect(Math.round(x) + 100, 38, 16, 2); } // chalk and an eraser
+    } else if (skin === "pond") { // pine trees and a snowbank behind the rink
+      const o = ((camX * PX * 0.5) % 64 + 64) % 64;
+      for (let x = -o; x < VW + 20; x += 64) for (const [dx, hgt] of [[6, 14], [30, 18], [48, 11]]) {
+        const bx = Math.round(x) + dx;
+        ctx.fillStyle = "#1d4a33"; for (let r = 0; r < hgt; r += 2) { const half = Math.round((r / hgt) * 6) + 1; ctx.fillRect(bx - half, 40 - hgt + r, half * 2 + 1, 2); }
+        ctx.fillStyle = "#f4f8fc"; ctx.fillRect(bx - 1, 40 - hgt, 3, 1);
+      }
+      ctx.fillStyle = "#e9f1f8"; ctx.fillRect(0, 38, VW, 4);
     }
   }
 
   function scrimmageLines(G) {
     if (G.phase !== "presnap" && G.phase !== "live" && G.phase !== "dead") return;
     if (G.play && G.play.type === "return") return;
+    const edge = fieldSkin() === "pond"; // light ice: give both lines dark edges so they don't read as yard lines
+    if (edge) { ctx.fillStyle = "rgba(0,0,0,.55)"; ctx.fillRect(sx(G.los) - 1, sy(0), 4, sy(FW) - sy(0)); const f = G.los + G.togo; if (f < 100) ctx.fillRect(sx(f) - 1, sy(0), 4, sy(FW) - sy(0)); }
     ctx.fillStyle = "#4aa3ff"; ctx.fillRect(sx(G.los), sy(0), 2, sy(FW) - sy(0));
     const fd = G.los + G.togo;
     if (fd < 100) { ctx.fillStyle = "#ffe14a"; ctx.fillRect(sx(fd), sy(0), 2, sy(FW) - sy(0)); }
@@ -305,18 +500,90 @@ const RENDER = (() => {
     text(String(team), x - 3, y - 10, T.trim, 8);
   }
 
+  // BALL SHOP cheat: which football is in play ("AUTO" is the regular brown one).
+  const ballSkin = () => (typeof CHEATS !== "undefined" ? CHEATS.value("ball") : "AUTO");
+  // One football, its top-left corner at (x, y). tall: the end-over-end frame of a tumbling ball.
+  // The fancy ones are a size bigger than the regular ball so they read at a glance.
+  function paintBall(x, y, tall, flat) {
+    const k = ballSkin(), t = performance.now() / 1000;
+    if (k === "AUTO") {
+      const W = tall ? 3 : 5, H = flat ? 2 : tall ? 5 : 3;
+      ctx.fillStyle = fieldSkin() === "chalk" ? "#c07a3a" : "#7a3f12"; ctx.fillRect(x, y, W, H); // lighter on the dark chalkboard
+      if (!flat) { ctx.fillStyle = "#fff"; ctx.fillRect(x + (tall ? 1 : 2), y + 1, 1, 1); }
+      return;
+    }
+    x -= 1; y -= 1;
+    if (k === "ornament") { // a round red bauble with a gold cap and a glint
+      ctx.fillStyle = "#5c0f0b"; ctx.fillRect(x, y + 1, 7, 5); ctx.fillRect(x + 1, y, 5, 7);
+      ctx.fillStyle = "#e0342a"; ctx.fillRect(x + 1, y + 1, 5, 5);
+      ctx.fillStyle = "#ff7a6a"; ctx.fillRect(x + 2, y + 2, 2, 1);
+      ctx.fillStyle = "#ffd400"; ctx.fillRect(x + 2, y - 2, 3, 2); ctx.fillStyle = "#c99a00"; ctx.fillRect(x + 3, y - 3, 1, 1);
+      if (Math.floor(t * 3) % 2) { ctx.fillStyle = "#fff"; ctx.fillRect(x + 2, y + 2, 1, 1); }
+      return;
+    }
+    const W = tall ? 4 : 7, H = flat ? 3 : tall ? 7 : 4;
+    if (k === "fire") { // a flickering glow and flame licks off the top
+      ctx.fillStyle = Math.floor(t * 12) % 2 ? "rgba(255,170,40,.6)" : "rgba(255,90,20,.55)";
+      ctx.fillRect(x - 2, y - 2, W + 4, H + 4);
+      ctx.fillStyle = "#c8221a"; ctx.fillRect(x, y, W, H);
+      ctx.fillStyle = "#ff7a1a"; ctx.fillRect(x + 1, y, W - 2, H - 1);
+      ctx.fillStyle = "#ffe14a"; ctx.fillRect(x + 2, y + 1, W - 4, Math.max(1, H - 3));
+      const f = Math.floor(t * 10) % 3; ctx.fillStyle = "#ff3b1f"; ctx.fillRect(x + 1 + f, y - 3, 1, 2); ctx.fillStyle = "#ffb627"; ctx.fillRect(x + 4 - f, y - 2, 1, 1);
+    } else { // gold, with a dark rim and a shine
+      ctx.fillStyle = "#6b4a00"; ctx.fillRect(x, y, W, H);
+      ctx.fillStyle = "#f0c000"; ctx.fillRect(x + 1, y, W - 2, H - 1);
+      ctx.fillStyle = "#fff3a0"; ctx.fillRect(x + 1, y, Math.max(1, W - 4), 1);
+      if (Math.floor(t * 4) % 3 === 0) { ctx.fillStyle = "#fff"; ctx.fillRect(x + W, y - 2, 1, 3); ctx.fillRect(x + W - 1, y - 1, 3, 1); }
+    }
+  }
+  // Passes, kicks and loose balls leave a trail with the fancy footballs: kept as a short list of
+  // field positions (so it scrolls with the camera) that fades out by age.
+  const TRAIL = 0.42;
+  function ballTrail(G, x, y, z, moving) {
+    const k = ballSkin();
+    const tr = G.ballTrail = G.ballTrail || [];
+    if (k === "AUTO") { tr.length = 0; return; }
+    if (moving && (!tr.length || tr[tr.length - 1].t !== G.time)) tr.push({ x, y, z, t: G.time });
+    while (tr.length && G.time - tr[0].t > TRAIL) tr.shift();
+    if (tr.length < 2) return;
+    const pt = p => [sx(p.x), sy(p.y) - Math.round(p.z * 3)], ice = fieldSkin() === "pond";
+    ctx.lineCap = "round";
+    for (let i = 1; i < tr.length; i++) {
+      const age = (G.time - tr[i].t) / TRAIL; if (age >= 1) continue;
+      const [x0, y0] = pt(tr[i - 1]), [x1, y1] = pt(tr[i]);
+      if (k === "fire") {
+        ctx.globalAlpha = 0.9 * (1 - age);
+        ctx.strokeStyle = age < 0.25 ? "#ffe14a" : age < 0.55 ? "#ff7a1a" : "#c8221a"; ctx.lineWidth = Math.max(1, 5 * (1 - age));
+        ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+        const e = Math.round(tr[i].t * 60); // pinned to the point, so embers don't hop as old points drop off
+        if (e % 3 === 0) { ctx.fillStyle = "#ffb627"; ctx.fillRect(x1 + (e * 7) % 5 - 2, y1 - 3 - Math.round(age * 6), 2, 2); } // embers rising
+      } else if (k === "gold") {
+        ctx.globalAlpha = 0.85 * (1 - age); ctx.strokeStyle = age < 0.3 ? "#fff3a0" : "#ffd400"; ctx.lineWidth = Math.max(1, 3 * (1 - age));
+        ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+        if (i % 3 === 0) { ctx.globalAlpha = 1 - age; ctx.fillStyle = "#fff"; const ox = ((i * 13) % 7) - 3, oy = ((i * 7) % 7) - 3; ctx.fillRect(x1 + ox, y1 + oy - 2, 1, 5); ctx.fillRect(x1 + ox - 2, y1 + oy, 5, 1); }
+      } else if (k === "ornament") {
+        ctx.globalAlpha = 0.5 * (1 - age); ctx.strokeStyle = ice ? "#d8342c" : "#fff"; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+        if (i % 2 === 0) { ctx.globalAlpha = 1 - age; ctx.fillStyle = (i / 2) % 2 ? (ice ? "#d8342c" : "#ffd400") : "#2f9a50"; ctx.fillRect(x1 + ((i * 11) % 7) - 3, y1 + ((i * 3) % 7) - 3, 2, 2); }
+      }
+    }
+    ctx.globalAlpha = 1; ctx.lineCap = "butt";
+  }
+
   function ball(G) {
     if (G.loose) {
       // A loose ball: shadow on the grass, ball above it, tumbling end over end.
       const l = G.loose, x = sx(l.x), y = sy(l.y), z = Math.round(l.z * 3);
+      const moving = l.z > 0.05 || Math.hypot(l.vx, l.vy) > 0.4;
+      ballTrail(G, l.x, l.y, l.z, moving);
       ctx.fillStyle = "rgba(0,0,0,.35)"; ctx.fillRect(x - 2, y - 1, 4, 2);
-      const spin = Math.floor(l.t * 14) % 2 && (l.z > 0.05 || Math.hypot(l.vx, l.vy) > 0.4);
-      ctx.fillStyle = "#7a3f12";
-      if (spin) ctx.fillRect(x - 1, y - z - 3, 3, 5); else ctx.fillRect(x - 2, y - z - 2, 5, 3);
-      ctx.fillStyle = "#fff"; ctx.fillRect(x, y - z - 1, 1, 1);
+      const spin = Math.floor(l.t * 14) % 2 && moving;
+      if (spin) paintBall(x - 1, y - z - 3, true); else paintBall(x - 2, y - z - 2);
       return;
     }
-    const b = G.ball; if (!b || b.state === "dead" || (b.state === "held" && !b.holder)) return;
+    const b = G.ball;
+    if (!b || b.state === "dead" || (b.state === "held" && !b.holder)) { ballTrail(G, 0, 0, 0, false); return; }
+    ballTrail(G, b.x, b.y, b.state === "air" ? b.z : 4, b.state === "air");
     // High-stepping or celebrating: the ball is part of his pose (held up high), so don't draw it at his hip.
     if (b.state === "held" && /^(highstep|spike)$/.test(poseFor(G, b.holder, G.time)[0])) return;
     let x = sx(b.x); const y = sy(b.y);
@@ -327,11 +594,11 @@ const RENDER = (() => {
       const h = b.holder, down = h.lying || h.down > 0 || (h.anim && h.anim.name === "fall");
       x = sx(h.x) + (down ? 2 : 3) * (h.face || 1);
       z = down ? 3 : 12;
-      if (down) { ctx.fillStyle = "#7a3f12"; ctx.fillRect(x - 2, y - z - 1, 4, 2); return; }
+      if (down) { paintBall(x - 2, y - z - 1, false, true); return; }
     }
-    ctx.fillStyle = "#7a3f12"; ctx.fillRect(x - 2, y - z - 2, 5, 3);
-    ctx.fillStyle = "#fff"; ctx.fillRect(x, y - z - 1, 1, 1);
+    paintBall(x - 2, y - z - 2);
   }
+
 
   function hud(G) {
     const T = CFG.TEAMS;
